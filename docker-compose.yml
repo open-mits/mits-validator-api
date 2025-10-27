@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mits-validator-api
+    ports:
+      - "8080:8080"
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - MAX_BODY_BYTES=524288
+      - RATE_LIMIT=60/minute
+      - REQUEST_TIMEOUT_SECONDS=2
+      - ENABLE_DOCS=true
+      - ENABLE_RATE_LIMITING=true
+    # Optionally load .env file if it exists (not required)
+    # env_file:
+    #   - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - api-network
+
+networks:
+  api-network:
+    driver: bridge
+
