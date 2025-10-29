@@ -52,12 +52,21 @@ class RefundabilityMaxType(Enum):
     PERCENTAGE = "Percentage"
 
 
+class RefundPerType(Enum):
+    """Valid RefundPerType values (Rule 47.3)."""
+
+    PER_UNIT = "Per Unit"
+    PER_PROPERTY = "Per Property"
+    PER_BUILDING = "Per Building"
+
+
 class AmountBasis(Enum):
     """Valid AmountBasis values (Rule 50)."""
 
     EXPLICIT = "Explicit"
     PERCENTAGE_OF = "Percentage Of"
     WITHIN_RANGE = "Within Range"
+    RANGE_OR_VARIABLE = "Range or Variable"  # Alternate form
     STEPPED = "Stepped"
     VARIABLE = "Variable"
 

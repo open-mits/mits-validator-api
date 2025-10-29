@@ -189,12 +189,50 @@ class OfferItemStructureValidator(BaseValidator):
                 element_path=item_path,
                 details={"class_code": class_code, "item_code": item_code},
             )
+        
+        # Rule F.37: AmountBasis required unless ChargeRequirement="Included"
+        self._validate_amount_basis_required(item, item_code, class_code, item_path)
 
         # Rules F.34, F.35, F.36: Validate occurrence constraints
         self._validate_occurrences(item, item_code, class_code, item_path)
 
         # Rule F.41: Check for unexpected children
         self._check_unexpected_children(item, item_code, class_code, item_path)
+
+    def _validate_amount_basis_required(
+        self, item: Element, item_code: str, class_code: str, item_path: str
+    ) -> None:
+        """
+        Validate Rule F.37: AmountBasis required unless ChargeRequirement="Included".
+
+        Args:
+            item: Offer item element
+            item_code: InternalCode of the item
+            class_code: Code of the parent class
+            item_path: Path to item for error messages
+        """
+        # Get ChargeRequirement from Characteristics
+        characteristics = item.find("Characteristics")
+        if characteristics is None:
+            return  # Already validated by rule F.32
+        
+        charge_req_elem = characteristics.find("ChargeRequirement")
+        if charge_req_elem is None:
+            return  # Will be caught by ItemCharacteristicsValidator
+        
+        charge_req = self.get_text(charge_req_elem)
+        
+        # Only check if ChargeRequirement is Mandatory or Optional
+        if charge_req in ("Mandatory", "Optional", "Conditional"):
+            amount_basis_elem = item.find("AmountBasis")
+            if amount_basis_elem is None or not self.get_text(amount_basis_elem):
+                self.result.add_error(
+                    rule_id="item_amount_basis_required",
+                    message=f"Item '{item_code}' has ChargeRequirement='{charge_req}' but missing or empty <AmountBasis>. "
+                    f"AmountBasis is required for non-Included items",
+                    element_path=item_path,
+                    details={"class_code": class_code, "item_code": item_code, "charge_requirement": charge_req},
+                )
 
     def _validate_occurrences(
         self, item: Element, item_code: str, class_code: str, item_path: str

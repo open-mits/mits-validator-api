@@ -16,6 +16,7 @@ from app.validators.mits.enums import (
     PaymentFrequency,
     Refundability,
     RefundabilityMaxType,
+    RefundPerType,
     validate_enum,
 )
 
@@ -218,25 +219,25 @@ class ItemCharacteristicsValidator(BaseValidator):
             char_path: Path to characteristics for error messages
             all_item_codes: Set of all valid item codes
         """
-        # Rule G.43.1: Must have ConditionalInternalCode or ConditionalAppliesTo
+        # Rule G.43.1: Must have ConditionalInternalCode or ConditionalScope
         cond_codes_elem = characteristics.find("ConditionalInternalCode")
+        cond_scope_elem = characteristics.find("ConditionalScope")
+        
+        # Try to get codes from either structure
+        cond_code_text = None
+        if cond_codes_elem is not None:
+            cond_code_text = self.get_text(cond_codes_elem)
+        elif cond_scope_elem is not None:
+            # Handle ConditionalScope/InternalCode structure
+            internal_codes = cond_scope_elem.findall("InternalCode")
+            if internal_codes:
+                cond_code_text = " ".join(self.get_text(ic) for ic in internal_codes if self.get_text(ic))
 
-        if cond_codes_elem is None:
-            self.result.add_error(
-                rule_id="char_conditional_has_codes",
-                message=f"Item '{item_code}' has ChargeRequirement='Conditional' but no <ConditionalInternalCode> element",
-                element_path=char_path,
-                details={"class_code": class_code, "item_code": item_code},
-            )
-            return
-
-        # Rule G.43.2: Every referenced code must resolve
-        cond_code_text = self.get_text(cond_codes_elem)
         if not cond_code_text:
             self.result.add_error(
-                rule_id="char_conditional_code_exists",
-                message=f"Item '{item_code}' has empty <ConditionalInternalCode>",
-                element_path=f"{char_path}/ConditionalInternalCode",
+                rule_id="char_conditional_has_codes",
+                message=f"Item '{item_code}' has ChargeRequirement='Conditional' but no valid conditional codes",
+                element_path=char_path,
                 details={"class_code": class_code, "item_code": item_code},
             )
             return
@@ -303,8 +304,25 @@ class ItemCharacteristicsValidator(BaseValidator):
 
         # Rule G.47: If Refundable or Deposit, check for required fields
         if refund in ["Refundable", "Deposit"]:
-            # Rule G.47.1: RefundabilityMaxType required
-            max_type_elem = characteristics.find("RefundabilityMaxType")
+            # Check for RefundDetails container
+            refund_details = characteristics.find("RefundDetails")
+            if refund_details is None:
+                self.result.add_error(
+                    rule_id="char_refund_details_required",
+                    message=f"Item '{item_code}' has Refundability='{refund}' but missing <RefundDetails> element",
+                    element_path=char_path,
+                    details={"class_code": class_code, "item_code": item_code},
+                )
+                return
+            
+            details_path = f"{char_path}/RefundDetails"
+            
+            # Rule G.47.1: RefundMaxType required
+            max_type_elem = refund_details.find("RefundMaxType")
+            if max_type_elem is None:
+                # Also check for RefundabilityMaxType (alternate naming)
+                max_type_elem = characteristics.find("RefundabilityMaxType")
+            
             if max_type_elem is None:
                 self.result.add_error(
                     rule_id="char_refund_max_type_required",
@@ -333,8 +351,12 @@ class ItemCharacteristicsValidator(BaseValidator):
                             details={"class_code": class_code, "item_code": item_code},
                         )
 
-            # Rule G.47.2: RefundabilityMax required and decimal ≥ 0
-            max_elem = characteristics.find("RefundabilityMax")
+            # Rule G.47.2: RefundMax required and decimal ≥ 0
+            max_elem = refund_details.find("RefundMax")
+            if max_elem is None:
+                # Also check for RefundabilityMax (alternate naming)
+                max_elem = characteristics.find("RefundabilityMax")
+            
             if max_elem is None:
                 self.result.add_error(
                     rule_id="char_refund_max_required",
@@ -368,6 +390,22 @@ class ItemCharacteristicsValidator(BaseValidator):
                             rule_id="char_refund_max_required",
                             message=f"Item '{item_code}' <RefundabilityMax> must be a valid decimal, found '{max_val}'",
                             element_path=f"{char_path}/RefundabilityMax",
+                            details={"class_code": class_code, "item_code": item_code},
+                        )
+            
+            # Rule G.47.3: RefundPerType validation (optional but if present must be valid)
+            per_type_elem = refund_details.find("RefundPerType")
+            if per_type_elem is not None:
+                per_type = self.get_text(per_type_elem)
+                if per_type:
+                    valid, error_msg = validate_enum(
+                        per_type, RefundPerType, "char_refund_per_type_valid", "RefundPerType"
+                    )
+                    if not valid:
+                        self.result.add_error(
+                            rule_id="char_refund_per_type_valid",
+                            message=error_msg,
+                            element_path=f"{details_path}/RefundPerType",
                             details={"class_code": class_code, "item_code": item_code},
                         )
 

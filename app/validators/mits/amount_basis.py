@@ -118,23 +118,23 @@ class AmountBasisValidator(BaseValidator):
             )
             return
 
-        # Get PercentageOfCode
-        percentage_of_code_elem = item.find("PercentageOfCode")
-        percentage_of_code = self.get_text(percentage_of_code_elem) if percentage_of_code_elem is not None else ""
-
-        # Rule H.38: PercentageOfCode present only when AmountBasis="Percentage Of"
-        if percentage_of_code and amount_basis != "Percentage Of":
-            self.result.add_error(
-                rule_id="item_percentage_code_when_needed",
-                message=f"Item '{item_code}' has <PercentageOfCode> but AmountBasis='{amount_basis}'. "
-                f"PercentageOfCode should only be present when AmountBasis='Percentage Of'",
-                element_path=f"{item_path}/PercentageOfCode",
-                details={"class_code": class_code, "item_code": item_code},
-            )
-
         # Rules H.51-55: Validate amount blocks against basis
         amount_blocks = item.findall("ChargeOfferAmount")
         for idx, block in enumerate(amount_blocks, start=1):
+            # Get PercentageOfCode from the amount block
+            percentage_of_code_elem = block.find("PercentageOfCode")
+            percentage_of_code = self.get_text(percentage_of_code_elem) if percentage_of_code_elem is not None else ""
+            
+            # Rule H.38: PercentageOfCode present only when AmountBasis="Percentage Of"
+            if percentage_of_code and amount_basis != "Percentage Of":
+                self.result.add_error(
+                    rule_id="item_percentage_code_when_needed",
+                    message=f"Item '{item_code}' has <PercentageOfCode> but AmountBasis='{amount_basis}'. "
+                    f"PercentageOfCode should only be present when AmountBasis='Percentage Of'",
+                    element_path=f"{item_path}/ChargeOfferAmount[{idx}]/PercentageOfCode",
+                    details={"class_code": class_code, "item_code": item_code},
+                )
+            
             self._validate_amount_block_for_basis(
                 block, amount_basis, item_code, class_code, item_path, idx, percentage_of_code
             )
@@ -204,22 +204,31 @@ class AmountBasisValidator(BaseValidator):
         """
         block_path = f"{item_path}/ChargeOfferAmount[{block_idx}]"
 
-        amounts_elem = block.find("Amounts")
         percentage_elem = block.find("Percentage")
-
-        amounts_text = self.get_text(amounts_elem) if amounts_elem is not None else ""
         percentage_text = self.get_text(percentage_elem) if percentage_elem is not None else ""
 
-        # Count number of amount values (comma or space separated)
+        # Count number of amount values
+        # Can be: multiple <Amounts> elements, or comma/newline-separated values within one element
+        amounts_elems = block.findall("Amounts")
         amount_count = 0
-        if amounts_text:
-            # Handle multiple amounts separated by commas or newlines
-            amount_values = [
-                a.strip()
-                for a in amounts_text.replace("\n", ",").replace("\t", ",").split(",")
-                if a.strip()
-            ]
-            amount_count = len(amount_values)
+        
+        if amounts_elems:
+            # First check if there are multiple <Amounts> elements
+            amount_count = len(amounts_elems)
+            
+            # If only one element, check if it contains comma-separated values
+            if amount_count == 1:
+                amounts_text = self.get_text(amounts_elems[0])
+                if amounts_text:
+                    # Handle multiple amounts separated by commas or newlines
+                    amount_values = [
+                        a.strip()
+                        for a in amounts_text.replace("\n", ",").replace("\t", ",").split(",")
+                        if a.strip()
+                    ]
+                    amount_count = len(amount_values)
+                else:
+                    amount_count = 0
 
         if amount_basis == "Explicit":
             # Rule H.51.1: Must have Amounts (≥1)
@@ -272,14 +281,24 @@ class AmountBasisValidator(BaseValidator):
                     element_path=f"{item_path}/PercentageOfCode",
                     details={"class_code": class_code, "item_code": item_code},
                 )
+            
+            # Rule H.52.4: No circular reference (item cannot reference itself)
+            elif percentage_of_code == item_code:
+                self.result.add_error(
+                    rule_id="basis_percentage_no_circular",
+                    message=f"Item '{item_code}' has AmountBasis='Percentage Of' with <PercentageOfCode>='{percentage_of_code}'. "
+                    f"An item cannot reference itself",
+                    element_path=f"{item_path}/PercentageOfCode",
+                    details={"class_code": class_code, "item_code": item_code},
+                )
 
-        elif amount_basis == "Within Range":
+        elif amount_basis in ("Within Range", "Range or Variable"):
             # Rule H.53.1: Accepts one Amounts value per block
             if amount_count > 1:
                 self.result.add_error(
-                    rule_id="basis_range_single_value",
-                    message=f"Item '{item_code}' has AmountBasis='Within Range' but {amount_count} amount values. "
-                    f"Only one amount value is allowed per block for Within Range basis",
+                    rule_id="basis_range_one_amount",
+                    message=f"Item '{item_code}' has AmountBasis='{amount_basis}' but {amount_count} amount values. "
+                    f"Only one amount value is allowed per block for range-based pricing",
                     element_path=f"{block_path}/Amounts",
                     details={"class_code": class_code, "item_code": item_code, "count": amount_count},
                 )

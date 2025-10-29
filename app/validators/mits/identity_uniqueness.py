@@ -64,7 +64,13 @@ class IdentityUniquenessValidator(BaseValidator):
             "floorplan_id_unique",
         )
 
-        # Rule 13: Validate ILS_Unit IDs
+        # Rule 13: Validate Unit/ILS_Unit IDs
+        self._validate_element_ids(
+            property_elem,
+            "Unit",
+            property_id,
+            "unit_id_unique",
+        )
         self._validate_element_ids(
             property_elem,
             "ILS_Unit",

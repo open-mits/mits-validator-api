@@ -69,7 +69,7 @@ class TestCharConditional:
                 <ConditionalScope>
                     <InternalCode>pet_allowed</InternalCode>
                 </ConditionalScope>
-                <Lifecycle>During Tenancy</Lifecycle>
+                <Lifecycle>During Term</Lifecycle>
                 <PaymentFrequency>Monthly</PaymentFrequency>
             </Characteristics>
             <AmountBasis>Explicit</AmountBasis>
@@ -95,7 +95,7 @@ class TestCharConditional:
                 <ChargeRequirement>Conditional</ChargeRequirement>
                 <ConditionalScope>
                 </ConditionalScope>
-                <Lifecycle>During Tenancy</Lifecycle>
+                <Lifecycle>During Term</Lifecycle>
             </Characteristics>
             <AmountBasis>Explicit</AmountBasis>
             <ChargeOfferAmount><Amounts>50</Amounts><Percentage></Percentage></ChargeOfferAmount>
@@ -122,7 +122,7 @@ class TestCharConditional:
                 <ConditionalScope>
                     <InternalCode>pet_fee</InternalCode>
                 </ConditionalScope>
-                <Lifecycle>During Tenancy</Lifecycle>
+                <Lifecycle>During Term</Lifecycle>
             </Characteristics>
             <AmountBasis>Explicit</AmountBasis>
             <ChargeOfferAmount><Amounts>50</Amounts><Percentage></Percentage></ChargeOfferAmount>
@@ -200,7 +200,7 @@ class TestCharFrequencyValid:
         """Item with PaymentFrequency Monthly - should pass."""
         xml = f"""<PhysicalProperty>
             <Property IDValue="1">
-                {create_charge_class("RENT", create_charge_item(lifecycle="During Tenancy", frequency="Monthly"))}
+                {create_charge_class("RENT", create_charge_item(lifecycle="During Term", frequency="Monthly"))}
             </Property>
         </PhysicalProperty>"""
         root = parse_xml(xml)
@@ -216,7 +216,7 @@ class TestCharFrequencyValid:
             <Description>Test</Description>
             <Characteristics>
                 <ChargeRequirement>Mandatory</ChargeRequirement>
-                <Lifecycle>During Tenancy</Lifecycle>
+                <Lifecycle>During Term</Lifecycle>
                 <PaymentFrequency>InvalidValue</PaymentFrequency>
             </Characteristics>
             <AmountBasis>Explicit</AmountBasis>
