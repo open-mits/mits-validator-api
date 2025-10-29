@@ -6,12 +6,13 @@ Validates cross-field totals, references, percentage-of relationships, and Inclu
 
 from typing import Dict, List, Set
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 
 
-class SectionNOPValidator(BaseValidator):
+class CrossValidation(BaseValidator):
     """
     Validator for Sections N, O, P: Integrity & References.
 
@@ -22,7 +23,7 @@ class SectionNOPValidator(BaseValidator):
     """
 
     section_name = "Integrity & References"
-    section_id = "N-O-P"
+    section_id = "cross_validation"
 
     VALID_ITEM_TYPES = {
         "ChargeOfferItem",
@@ -106,7 +107,7 @@ class SectionNOPValidator(BaseValidator):
 
         return registry
 
-    def _get_parent_type(self, element: ET.Element) -> str:
+    def _get_parent_type(self, element: Element) -> str:
         """
         Get the parent type (Property, Building, Floorplan, ILS_Unit) of an element.
 
@@ -126,7 +127,7 @@ class SectionNOPValidator(BaseValidator):
         return "unknown"
 
     def _validate_class_integrity(
-        self, class_elem: ET.Element, class_code: str, global_item_codes: Dict
+        self, class_elem: Element, class_code: str, global_item_codes: Dict
     ) -> None:
         """
         Validate Rules N.82-89: Intra-class integrity.
@@ -150,7 +151,7 @@ class SectionNOPValidator(BaseValidator):
             self._validate_class_limits_application(limits, items, class_code, class_elem)
 
     def _validate_class_limits_application(
-        self, limits: ET.Element, items: List[ET.Element], class_code: str, class_elem: ET.Element
+        self, limits: Element, items: List[Element], class_code: str, class_elem: Element
     ) -> None:
         """
         Validate Rules N.85-89: Class limits application.
@@ -180,7 +181,7 @@ class SectionNOPValidator(BaseValidator):
             for code in applies_to_codes:
                 if code not in item_codes_in_class:
                     self.result.add_warning(
-                        rule_id="N.85",
+                        rule_id="limit_applies_to_same_class",
                         message=f"Class '{class_code}' <Limits>/<AppliesTo> references code '{code}' "
                         f"which is not in this class. Only codes within the same class are considered",
                         element_path=f"{self.get_element_path(class_elem)}/Limits/AppliesTo",
@@ -196,7 +197,7 @@ class SectionNOPValidator(BaseValidator):
 
         if max_occur_elem is not None and self.get_text(max_occur_elem):
             self.result.add_info(
-                rule_id="N.86",
+                rule_id="limit_occurrence_cap_runtime",
                 message=f"Class '{class_code}' has MaximumOccurences cap. "
                 f"Selectable instances are limited at runtime",
                 element_path=f"{self.get_element_path(class_elem)}/Limits/MaximumOccurences",
@@ -205,7 +206,7 @@ class SectionNOPValidator(BaseValidator):
 
         if max_amount_elem is not None and self.get_text(max_amount_elem):
             self.result.add_info(
-                rule_id="N.87",
+                rule_id="limit_amount_cap_runtime",
                 message=f"Class '{class_code}' has MaximumAmount cap. "
                 f"Total charges are limited at runtime",
                 element_path=f"{self.get_element_path(class_elem)}/Limits/MaximumAmount",
@@ -230,7 +231,7 @@ class SectionNOPValidator(BaseValidator):
             # Rule O.90: PercentageOfCode must resolve to existing InternalCode
             if percentage_of_code not in global_item_codes:
                 self.result.add_error(
-                    rule_id="O.90",
+                    rule_id="reference_code_exists",
                     message=f"Item '{item_code}' references non-existent code '{percentage_of_code}' in <PercentageOfCode>",
                     element_path=f"{item_path}/PercentageOfCode",
                     details={"item_code": item_code, "referenced_code": percentage_of_code},
@@ -240,7 +241,7 @@ class SectionNOPValidator(BaseValidator):
             # Rule O.91: No self-reference
             if percentage_of_code == item_code:
                 self.result.add_error(
-                    rule_id="O.91",
+                    rule_id="reference_no_self",
                     message=f"Item '{item_code}' cannot reference itself in <PercentageOfCode>",
                     element_path=f"{item_path}/PercentageOfCode",
                     details={"item_code": item_code},
@@ -250,7 +251,7 @@ class SectionNOPValidator(BaseValidator):
             # Rule O.92: Check for circular references
             if self._has_circular_reference(item_code, global_item_codes, set()):
                 self.result.add_error(
-                    rule_id="O.92",
+                    rule_id="reference_no_circular",
                     message=f"Item '{item_code}' has circular percentage-of reference chain",
                     element_path=f"{item_path}/PercentageOfCode",
                     details={"item_code": item_code},
@@ -260,7 +261,7 @@ class SectionNOPValidator(BaseValidator):
             referenced_info = global_item_codes[percentage_of_code]
             if referenced_info["charge_requirement"] == "Included":
                 self.result.add_error(
-                    rule_id="O.93",
+                    rule_id="reference_not_included",
                     message=f"Item '{item_code}' references Included item '{percentage_of_code}'. "
                     f"Cannot calculate percentage of a zero/empty amount",
                     element_path=f"{item_path}/PercentageOfCode",
@@ -333,7 +334,7 @@ class SectionNOPValidator(BaseValidator):
                     freq = self.get_text(freq_elem)
                     if freq in {"Monthly", "Annually", "Quarterly"}:
                         self.result.add_error(
-                            rule_id="P.96",
+                            rule_id="included_no_recurring",
                             message=f"Item '{item_code}' has ChargeRequirement='Included' "
                             f"but PaymentFrequency='{freq}'. Included items cannot have recurring billing",
                             element_path=f"{item_path}/Characteristics/PaymentFrequency",

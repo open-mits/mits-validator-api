@@ -7,13 +7,14 @@ Validates the content and format of ChargeOfferAmount blocks.
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 from app.validators.mits.enums import TermBasis, validate_enum
 
 
-class SectionIValidator(BaseValidator):
+class AmountFormatValidator(BaseValidator):
     """
     Validator for Section I: Amount Blocks.
 
@@ -30,7 +31,7 @@ class SectionIValidator(BaseValidator):
     """
 
     section_name = "Amount Blocks"
-    section_id = "I"
+    section_id = "amount_format"
 
     VALID_ITEM_TYPES = {
         "ChargeOfferItem",
@@ -57,7 +58,7 @@ class SectionIValidator(BaseValidator):
         return self.result
 
     def _validate_item_amount_blocks(
-        self, item: ET.Element, item_code: str, class_code: str
+        self, item: Element, item_code: str, class_code: str
     ) -> None:
         """
         Validate all amount blocks for a single item.
@@ -83,7 +84,7 @@ class SectionIValidator(BaseValidator):
             self._check_overlapping_windows(scheduled_windows, item_code, class_code, item_path)
 
     def _validate_amount_block(
-        self, block: ET.Element, item_code: str, class_code: str, block_path: str
+        self, block: Element, item_code: str, class_code: str, block_path: str
     ) -> tuple | None:
         """
         Validate a single ChargeOfferAmount block.
@@ -106,7 +107,7 @@ class SectionIValidator(BaseValidator):
         # Rule I.57: Must contain at least one of Amounts or Percentage
         if not amounts_text and not percentage_text:
             self.result.add_error(
-                rule_id="I.57",
+                rule_id="amount_has_value",
                 message=f"Amount block in item '{item_code}' has both empty <Amounts> and <Percentage>. "
                 f"At least one must be present",
                 element_path=block_path,
@@ -126,10 +127,10 @@ class SectionIValidator(BaseValidator):
         if term_basis_elem is not None:
             term_basis = self.get_text(term_basis_elem)
             if term_basis:
-                valid, error_msg = validate_enum(term_basis, TermBasis, "I.62", "TermBasis")
+                valid, error_msg = validate_enum(term_basis, TermBasis, "term_basis_valid", "TermBasis")
                 if not valid:
                     self.result.add_error(
-                        rule_id="I.62",
+                        rule_id="term_basis_valid",
                         message=error_msg,
                         element_path=f"{block_path}/TermBasis",
                         details={"class_code": class_code, "item_code": item_code},
@@ -167,7 +168,7 @@ class SectionIValidator(BaseValidator):
                 exponent = decimal_val.as_tuple().exponent
                 if exponent < -2:
                     self.result.add_error(
-                        rule_id="I.58",
+                        rule_id="amount_decimal_format",
                         message=f"Amount value '{val}' in item '{item_code}' has more than 2 decimal places",
                         element_path=amounts_path,
                         details={"class_code": class_code, "item_code": item_code, "value": val},
@@ -176,7 +177,7 @@ class SectionIValidator(BaseValidator):
                 # Rule I.59: Values must be ≥ 0
                 if decimal_val < 0:
                     self.result.add_error(
-                        rule_id="I.59",
+                        rule_id="amount_non_negative",
                         message=f"Amount value '{val}' in item '{item_code}' must be ≥ 0",
                         element_path=amounts_path,
                         details={"class_code": class_code, "item_code": item_code, "value": val},
@@ -184,7 +185,7 @@ class SectionIValidator(BaseValidator):
 
             except (InvalidOperation, ValueError):
                 self.result.add_error(
-                    rule_id="I.58",
+                    rule_id="amount_decimal_format",
                     message=f"Amount value '{val}' in item '{item_code}' is not a valid decimal number",
                     element_path=amounts_path,
                     details={"class_code": class_code, "item_code": item_code, "value": val},
@@ -208,7 +209,7 @@ class SectionIValidator(BaseValidator):
             # Rule I.60: Valid decimal ≥ 0
             if percentage_val < 0:
                 self.result.add_error(
-                    rule_id="I.60",
+                    rule_id="percentage_decimal_valid",
                     message=f"Percentage value '{percentage_text}' in item '{item_code}' must be ≥ 0",
                     element_path=percentage_path,
                     details={"class_code": class_code, "item_code": item_code, "value": percentage_text},
@@ -218,7 +219,7 @@ class SectionIValidator(BaseValidator):
             # No error, but could add an info message if useful
             if percentage_val > 100:
                 self.result.add_info(
-                    rule_id="I.61",
+                    rule_id="percentage_over_100_allowed",
                     message=f"Percentage value {percentage_text}% in item '{item_code}' exceeds 100% "
                     f"(allowed for cases like early termination fees)",
                     element_path=percentage_path,
@@ -227,14 +228,14 @@ class SectionIValidator(BaseValidator):
 
         except (InvalidOperation, ValueError):
             self.result.add_error(
-                rule_id="I.60",
+                rule_id="percentage_decimal_valid",
                 message=f"Percentage value '{percentage_text}' in item '{item_code}' is not a valid decimal number",
                 element_path=percentage_path,
                 details={"class_code": class_code, "item_code": item_code, "value": percentage_text},
             )
 
     def _validate_dates(
-        self, block: ET.Element, item_code: str, class_code: str, block_path: str
+        self, block: Element, item_code: str, class_code: str, block_path: str
     ) -> tuple | None:
         """
         Validate Rules I.63, I.64, I.65: Date fields and scheduled pricing.
@@ -262,14 +263,14 @@ class SectionIValidator(BaseValidator):
                 duration_val = int(duration)
                 if duration_val < 0:
                     self.result.add_error(
-                        rule_id="I.65",
+                        rule_id="duration_integer_valid",
                         message=f"<Duration> in item '{item_code}' must be ≥ 0, found '{duration}'",
                         element_path=f"{block_path}/Duration",
                         details={"class_code": class_code, "item_code": item_code},
                     )
             except ValueError:
                 self.result.add_error(
-                    rule_id="I.65",
+                    rule_id="duration_integer_valid",
                     message=f"<Duration> in item '{item_code}' must be an integer, found '{duration}'",
                     element_path=f"{block_path}/Duration",
                     details={"class_code": class_code, "item_code": item_code},
@@ -284,7 +285,7 @@ class SectionIValidator(BaseValidator):
         # Rule I.64.1: If scheduled pricing, StartTermEarliest is required
         if not start_earliest:
             self.result.add_error(
-                rule_id="I.64.1",
+                rule_id="scheduled_has_start_date",
                 message=f"Scheduled pricing in item '{item_code}' missing required <StartTermEarliest>",
                 element_path=block_path,
                 details={"class_code": class_code, "item_code": item_code},
@@ -304,7 +305,7 @@ class SectionIValidator(BaseValidator):
         # Rule I.63: If both present, Earliest ≤ Latest
         if latest_date and earliest_date > latest_date:
             self.result.add_error(
-                rule_id="I.63",
+                rule_id="date_range_valid",
                 message=f"StartTermEarliest ({start_earliest}) > StartTermLatest ({start_latest}) in item '{item_code}'",
                 element_path=block_path,
                 details={"class_code": class_code, "item_code": item_code},
@@ -346,7 +347,7 @@ class SectionIValidator(BaseValidator):
 
         # Rule I.64.2: Date must be parseable
         self.result.add_error(
-            rule_id="I.64.2",
+            rule_id="scheduled_date_parseable",
             message=f"Date value '{date_str}' in item '{item_code}' is not in a recognized format",
             element_path=date_path,
             details={"class_code": class_code, "item_code": item_code, "value": date_str},
@@ -378,7 +379,7 @@ class SectionIValidator(BaseValidator):
                 # Check for overlap
                 if start1 <= end2 and start2 <= end1:
                     self.result.add_error(
-                        rule_id="I.64.3",
+                        rule_id="scheduled_no_overlap",
                         message=f"Item '{item_code}' has overlapping scheduled pricing windows: "
                         f"block #{idx1} and block #{idx2}",
                         element_path=item_path,

@@ -6,12 +6,13 @@ Validates StorageOfferItem specific fields and semantics.
 
 from decimal import Decimal, InvalidOperation
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 
 
-class SectionMValidator(BaseValidator):
+class StorageValidation(BaseValidator):
     """
     Validator for Section M: StorageOfferItem.
 
@@ -22,7 +23,7 @@ class SectionMValidator(BaseValidator):
     """
 
     section_name = "StorageOfferItem"
-    section_id = "M"
+    section_id = "storage_validation"
 
     # Common unit of measure tokens for storage
     VALID_STORAGE_UNITS = {
@@ -63,7 +64,7 @@ class SectionMValidator(BaseValidator):
 
         return self.result
 
-    def _validate_storage_item(self, item: ET.Element, item_code: str, class_code: str) -> None:
+    def _validate_storage_item(self, item: Element, item_code: str, class_code: str) -> None:
         """
         Validate a single StorageOfferItem.
 
@@ -84,14 +85,14 @@ class SectionMValidator(BaseValidator):
                         dim_decimal = Decimal(dim_value)
                         if dim_decimal < 0:
                             self.result.add_error(
-                                rule_id="M.80",
+                                rule_id="storage_dimensions_valid",
                                 message=f"Storage item '{item_code}' <{dimension_field}> must be ≥ 0, found '{dim_value}'",
                                 element_path=f"{item_path}/{dimension_field}",
                                 details={"class_code": class_code, "item_code": item_code, "value": dim_value},
                             )
                     except (InvalidOperation, ValueError):
                         self.result.add_error(
-                            rule_id="M.80",
+                            rule_id="storage_dimensions_valid",
                             message=f"Storage item '{item_code}' <{dimension_field}> must be a valid decimal, found '{dim_value}'",
                             element_path=f"{item_path}/{dimension_field}",
                             details={"class_code": class_code, "item_code": item_code, "value": dim_value},
@@ -103,7 +104,7 @@ class SectionMValidator(BaseValidator):
             uom = self.get_text(uom_elem).lower()
             if uom and uom not in self.VALID_STORAGE_UNITS:
                 self.result.add_error(
-                    rule_id="M.81",
+                    rule_id="storage_unit_recognized",
                     message=f"Storage item '{item_code}' has unrecognized <StorageUoM>='{uom}'. "
                     f"Expected one of: {', '.join(sorted(self.VALID_STORAGE_UNITS))}",
                     element_path=f"{item_path}/StorageUoM",

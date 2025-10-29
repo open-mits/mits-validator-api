@@ -4,13 +4,14 @@ Section J: AmountPerType & Frequency Alignment (Rules 66-69)
 Validates AmountPerType field and its relationship with PaymentFrequency.
 """
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 from app.validators.mits.enums import AmountPerType, validate_enum
 
 
-class SectionJValidator(BaseValidator):
+class FrequencyAlignmentValidator(BaseValidator):
     """
     Validator for Section J: AmountPerType & Frequency Alignment.
 
@@ -22,7 +23,7 @@ class SectionJValidator(BaseValidator):
     """
 
     section_name = "AmountPerType & Frequency"
-    section_id = "J"
+    section_id = "frequency_alignment"
 
     VALID_ITEM_TYPES = {
         "ChargeOfferItem",
@@ -91,7 +92,7 @@ class SectionJValidator(BaseValidator):
         return info
 
     def _validate_item_frequency(
-        self, item: ET.Element, item_code: str, class_code: str, item_info: dict
+        self, item: Element, item_code: str, class_code: str, item_info: dict
     ) -> None:
         """
         Validate frequency-related rules for a single item.
@@ -109,10 +110,10 @@ class SectionJValidator(BaseValidator):
         if amount_per_type_elem is not None:
             amount_per_type = self.get_text(amount_per_type_elem)
             if amount_per_type:
-                valid, error_msg = validate_enum(amount_per_type, AmountPerType, "J.66", "AmountPerType")
+                valid, error_msg = validate_enum(amount_per_type, AmountPerType, "amount_per_type_enum", "AmountPerType")
                 if not valid:
                     self.result.add_error(
-                        rule_id="J.66",
+                        rule_id="amount_per_type_enum",
                         message=error_msg,
                         element_path=f"{item_path}/AmountPerType",
                         details={"class_code": class_code, "item_code": item_code},
@@ -121,7 +122,7 @@ class SectionJValidator(BaseValidator):
                 # Rule J.67: Informational note for Applicant multiplicity
                 if amount_per_type == "Applicant":
                     self.result.add_info(
-                        rule_id="J.67",
+                        rule_id="amount_per_applicant_note",
                         message=f"Item '{item_code}' uses AmountPerType='Applicant'. "
                         f"The amount will be multiplied by the number of applicants",
                         element_path=f"{item_path}/AmountPerType",
@@ -151,7 +152,7 @@ class SectionJValidator(BaseValidator):
                 ref_frequency, _, _ = item_info[percentage_of_code]
                 if ref_frequency in self.ONE_TIME_FREQUENCIES:
                     self.result.add_error(
-                        rule_id="J.68",
+                        rule_id="frequency_basis_coherent",
                         message=f"Item '{item_code}' has recurring PaymentFrequency='{frequency}' "
                         f"but references one-time item '{percentage_of_code}' (PaymentFrequency='{ref_frequency}'). "
                         f"This creates inconsistent billing semantics",
@@ -172,7 +173,7 @@ class SectionJValidator(BaseValidator):
                 term_basis_elem = block.find("TermBasis")
                 if term_basis_elem is not None and self.get_text(term_basis_elem):
                     self.result.add_info(
-                        rule_id="J.69",
+                        rule_id="onetime_with_term_basis",
                         message=f"Item '{item_code}' has one-time PaymentFrequency='{frequency}' with TermBasis. "
                         f"This is allowed",
                         element_path=f"{item_path}/ChargeOfferAmount/TermBasis",

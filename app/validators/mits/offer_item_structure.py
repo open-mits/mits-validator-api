@@ -6,12 +6,13 @@ Validates the common structure of all offer items (ChargeOfferItem and specializ
 
 from decimal import Decimal, InvalidOperation
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 
 
-class SectionFValidator(BaseValidator):
+class OfferItemStructureValidator(BaseValidator):
     """
     Validator for Section F: Offer Item Common Structure.
 
@@ -34,7 +35,7 @@ class SectionFValidator(BaseValidator):
     """
 
     section_name = "Offer Item Structure"
-    section_id = "F"
+    section_id = "offer_item_structure"
 
     VALID_ITEM_TYPES = {
         "ChargeOfferItem",
@@ -72,7 +73,7 @@ class SectionFValidator(BaseValidator):
 
         return self.result
 
-    def _validate_class_items(self, class_elem: ET.Element, class_code: str) -> None:
+    def _validate_class_items(self, class_elem: Element, class_code: str) -> None:
         """
         Validate all items within a ChargeOfferClass.
 
@@ -90,7 +91,7 @@ class SectionFValidator(BaseValidator):
             # Rule F.27: InternalCode is required and non-empty
             if not item_code:
                 self.result.add_error(
-                    rule_id="F.27",
+                    rule_id="item_has_internal_code",
                     message=f"Offer item in class '{class_code}' missing required non-empty 'InternalCode' attribute",
                     element_path=item_path,
                     details={"class_code": class_code},
@@ -102,7 +103,7 @@ class SectionFValidator(BaseValidator):
             # Rule F.28: InternalCode values are unique within parent class
             if item_code in internal_codes:
                 self.result.add_error(
-                    rule_id="F.28",
+                    rule_id="item_internal_code_unique",
                     message=f"Duplicate InternalCode '{item_code}' found in class '{class_code}'. "
                     f"Codes must be unique within the same ChargeOfferClass",
                     element_path=item_path,
@@ -115,7 +116,7 @@ class SectionFValidator(BaseValidator):
             self._validate_item_structure(item, item_code, class_code, item_path)
 
     def _validate_item_structure(
-        self, item: ET.Element, item_code: str, class_code: str, item_path: str
+        self, item: Element, item_code: str, class_code: str, item_path: str
     ) -> None:
         """
         Validate the structure of a single offer item.
@@ -130,14 +131,14 @@ class SectionFValidator(BaseValidator):
         name_elem = item.find("Name")
         if name_elem is None:
             self.result.add_error(
-                rule_id="F.30",
+                rule_id="item_has_name",
                 message=f"Item '{item_code}' in class '{class_code}' missing required <Name> element",
                 element_path=item_path,
                 details={"class_code": class_code, "item_code": item_code},
             )
         elif not self.get_text(name_elem):
             self.result.add_error(
-                rule_id="F.30",
+                rule_id="item_has_name",
                 message=f"Item '{item_code}' in class '{class_code}' has empty <Name> element",
                 element_path=f"{item_path}/Name",
                 details={"class_code": class_code, "item_code": item_code},
@@ -147,14 +148,14 @@ class SectionFValidator(BaseValidator):
         desc_elem = item.find("Description")
         if desc_elem is None:
             self.result.add_error(
-                rule_id="F.31",
+                rule_id="item_has_description",
                 message=f"Item '{item_code}' in class '{class_code}' missing required <Description> element",
                 element_path=item_path,
                 details={"class_code": class_code, "item_code": item_code},
             )
         elif not self.get_text(desc_elem):
             self.result.add_error(
-                rule_id="F.31",
+                rule_id="item_has_description",
                 message=f"Item '{item_code}' in class '{class_code}' has empty <Description> element",
                 element_path=f"{item_path}/Description",
                 details={"class_code": class_code, "item_code": item_code},
@@ -164,14 +165,14 @@ class SectionFValidator(BaseValidator):
         characteristics = item.findall("Characteristics")
         if len(characteristics) == 0:
             self.result.add_error(
-                rule_id="F.32",
+                rule_id="item_has_one_characteristics",
                 message=f"Item '{item_code}' in class '{class_code}' missing required <Characteristics> element",
                 element_path=item_path,
                 details={"class_code": class_code, "item_code": item_code},
             )
         elif len(characteristics) > 1:
             self.result.add_error(
-                rule_id="F.32",
+                rule_id="item_has_one_characteristics",
                 message=f"Item '{item_code}' in class '{class_code}' has multiple <Characteristics> elements. "
                 f"Only one is allowed",
                 element_path=item_path,
@@ -182,7 +183,7 @@ class SectionFValidator(BaseValidator):
         amounts = item.findall("ChargeOfferAmount")
         if not amounts:
             self.result.add_error(
-                rule_id="F.33",
+                rule_id="item_has_amount_blocks",
                 message=f"Item '{item_code}' in class '{class_code}' must contain at least one "
                 f"<ChargeOfferAmount> element",
                 element_path=item_path,
@@ -196,7 +197,7 @@ class SectionFValidator(BaseValidator):
         self._check_unexpected_children(item, item_code, class_code, item_path)
 
     def _validate_occurrences(
-        self, item: ET.Element, item_code: str, class_code: str, item_path: str
+        self, item: Element, item_code: str, class_code: str, item_path: str
     ) -> None:
         """
         Validate ItemMinimumOccurrences and ItemMaximumOccurrences.
@@ -221,14 +222,14 @@ class SectionFValidator(BaseValidator):
                     min_occur = int(min_text)
                     if min_occur < 0:
                         self.result.add_error(
-                            rule_id="F.34",
+                            rule_id="item_min_occurrence_valid",
                             message=f"<ItemMinimumOccurrences> in item '{item_code}' must be ≥ 0, found '{min_text}'",
                             element_path=f"{item_path}/ItemMinimumOccurrences",
                             details={"class_code": class_code, "item_code": item_code},
                         )
                 except ValueError:
                     self.result.add_error(
-                        rule_id="F.34",
+                        rule_id="item_min_occurrence_valid",
                         message=f"<ItemMinimumOccurrences> in item '{item_code}' must be an integer, found '{min_text}'",
                         element_path=f"{item_path}/ItemMinimumOccurrences",
                         details={"class_code": class_code, "item_code": item_code},
@@ -242,14 +243,14 @@ class SectionFValidator(BaseValidator):
                     max_occur = int(max_text)
                     if max_occur < 1:
                         self.result.add_error(
-                            rule_id="F.35",
+                            rule_id="item_max_occurrence_valid",
                             message=f"<ItemMaximumOccurrences> in item '{item_code}' must be ≥ 1, found '{max_text}'",
                             element_path=f"{item_path}/ItemMaximumOccurrences",
                             details={"class_code": class_code, "item_code": item_code},
                         )
                 except ValueError:
                     self.result.add_error(
-                        rule_id="F.35",
+                        rule_id="item_max_occurrence_valid",
                         message=f"<ItemMaximumOccurrences> in item '{item_code}' must be an integer, found '{max_text}'",
                         element_path=f"{item_path}/ItemMaximumOccurrences",
                         details={"class_code": class_code, "item_code": item_code},
@@ -259,7 +260,7 @@ class SectionFValidator(BaseValidator):
         if min_occur is not None and max_occur is not None:
             if min_occur > max_occur:
                 self.result.add_error(
-                    rule_id="F.36",
+                    rule_id="item_occurrence_range_valid",
                     message=f"Item '{item_code}' has ItemMinimumOccurrences ({min_occur}) > "
                     f"ItemMaximumOccurrences ({max_occur}). Min must be ≤ Max",
                     element_path=item_path,
@@ -267,7 +268,7 @@ class SectionFValidator(BaseValidator):
                 )
 
     def _check_unexpected_children(
-        self, item: ET.Element, item_code: str, class_code: str, item_path: str
+        self, item: Element, item_code: str, class_code: str, item_path: str
     ) -> None:
         """
         Check for unexpected child elements in an item.
@@ -312,7 +313,7 @@ class SectionFValidator(BaseValidator):
         for child in item:
             if child.tag not in allowed_children:
                 self.result.add_warning(
-                    rule_id="F.41",
+                    rule_id="item_no_unexpected_children",
                     message=f"Item '{item_code}' contains unexpected child element <{child.tag}>",
                     element_path=f"{item_path}/{child.tag}",
                     details={"class_code": class_code, "item_code": item_code},

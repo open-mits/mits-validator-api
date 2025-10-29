@@ -6,12 +6,13 @@ Validates the structure and identity of ChargeOfferClass elements.
 
 from typing import Dict, List, Set
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 
 
-class SectionDValidator(BaseValidator):
+class ChargeClassValidator(BaseValidator):
     """
     Validator for Section D: ChargeOfferClass Structure.
 
@@ -25,7 +26,7 @@ class SectionDValidator(BaseValidator):
     """
 
     section_name = "ChargeOfferClass Structure"
-    section_id = "D"
+    section_id = "charge_class"
 
     VALID_ITEM_TYPES = {
         "ChargeOfferItem",
@@ -48,7 +49,7 @@ class SectionDValidator(BaseValidator):
             ValidationResult with any errors found
         """
         # Build a map of classes grouped by their immediate parent
-        classes_by_parent: Dict[str, List[ET.Element]] = {}
+        classes_by_parent: Dict[str, List[Element]] = {}
 
         for class_elem in self.root.iter("ChargeOfferClass"):
             # Rule D.15: Check for Code attribute
@@ -57,7 +58,7 @@ class SectionDValidator(BaseValidator):
 
             if not code:
                 self.result.add_error(
-                    rule_id="D.15",
+                    rule_id="class_has_code",
                     message="<ChargeOfferClass> missing required non-empty 'Code' attribute",
                     element_path=class_path,
                 )
@@ -67,7 +68,7 @@ class SectionDValidator(BaseValidator):
             items = [child for child in class_elem if child.tag in self.VALID_ITEM_TYPES]
             if not items:
                 self.result.add_error(
-                    rule_id="D.18",
+                    rule_id="class_has_items",
                     message=f"<ChargeOfferClass Code='{code}'> must contain at least one offer item "
                     f"({', '.join(sorted(self.VALID_ITEM_TYPES))})",
                     element_path=class_path,
@@ -79,7 +80,7 @@ class SectionDValidator(BaseValidator):
                 if child.tag not in self.VALID_CLASS_CHILDREN:
                     # Unknown child element
                     self.result.add_warning(
-                        rule_id="D.19",
+                        rule_id="class_no_empty_children",
                         message=f"<ChargeOfferClass Code='{code}'> contains unexpected child element <{child.tag}>",
                         element_path=f"{class_path}/{child.tag}",
                         details={"code": code, "unexpected_element": child.tag},
@@ -90,7 +91,7 @@ class SectionDValidator(BaseValidator):
                     # Only report if it's truly empty (not just trimmed)
                     if child.text:
                         self.result.add_warning(
-                            rule_id="D.19",
+                            rule_id="class_no_empty_children",
                             message=f"<ChargeOfferClass Code='{code}'>/<{child.tag}> "
                             f"contains whitespace-only text content",
                             element_path=f"{class_path}/{child.tag}",
@@ -109,7 +110,7 @@ class SectionDValidator(BaseValidator):
 
         return self.result
 
-    def _get_parent_key(self, element: ET.Element) -> str:
+    def _get_parent_key(self, element: Element) -> str:
         """
         Get a unique key identifying the parent of an element.
 
@@ -132,7 +133,7 @@ class SectionDValidator(BaseValidator):
             return f"{parent.tag}[@id='{parent_id}']"
         return f"{parent.tag}"
 
-    def _check_code_uniqueness(self, classes: List[ET.Element], parent_key: str) -> None:
+    def _check_code_uniqueness(self, classes: List[Element], parent_key: str) -> None:
         """
         Check that Code values are unique within a parent context.
 
@@ -149,7 +150,7 @@ class SectionDValidator(BaseValidator):
 
             if code in seen_codes:
                 self.result.add_error(
-                    rule_id="D.17",
+                    rule_id="class_code_unique_in_parent",
                     message=f"Duplicate <ChargeOfferClass Code='{code}'> found within parent {parent_key}. "
                     f"Class Codes must be unique within the same parent",
                     element_path=self.get_element_path(class_elem),

@@ -8,12 +8,13 @@ import re
 from datetime import datetime
 from typing import Dict, List, Set
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 
 
-class SectionQRSTValidator(BaseValidator):
+class DataQualityValidator(BaseValidator):
     """
     Validator for Sections Q, R, S, T: Final Validation Rules.
 
@@ -25,7 +26,7 @@ class SectionQRSTValidator(BaseValidator):
     """
 
     section_name = "Hygiene & Duplicates"
-    section_id = "Q-R-S-T"
+    section_id = "data_quality"
 
     VALID_ITEM_TYPES = {
         "ChargeOfferItem",
@@ -78,7 +79,7 @@ class SectionQRSTValidator(BaseValidator):
                         text = field_elem.text or ""
                         if not text.strip():
                             self.result.add_error(
-                                rule_id="Q.98",
+                                rule_id="text_required_nonempty",
                                 message=f"Item '{item_code}' has empty or whitespace-only <{field_name}>",
                                 element_path=f"{item_path}/{field_name}",
                                 details={"class_code": class_code, "item_code": item_code},
@@ -91,7 +92,7 @@ class SectionQRSTValidator(BaseValidator):
                 self._check_control_characters(item, item_code, class_code, item_path)
 
     def _validate_numeric_hygiene(
-        self, item: ET.Element, item_code: str, class_code: str, item_path: str
+        self, item: Element, item_code: str, class_code: str, item_path: str
     ) -> None:
         """
         Validate Rules Q.99-101: Numeric field hygiene.
@@ -139,7 +140,7 @@ class SectionQRSTValidator(BaseValidator):
             # Rule Q.99: Disallow currency symbols, thousands separators
             if any(char in val for char in ["$", "€", "£", ",", " "]):
                 self.result.add_error(
-                    rule_id="Q.99",
+                    rule_id="numeric_no_symbols",
                     message=f"Numeric value '{val}' in item '{item_code}' contains invalid characters. "
                     f"No currency symbols or thousands separators allowed",
                     element_path=field_path,
@@ -149,7 +150,7 @@ class SectionQRSTValidator(BaseValidator):
             # Rule Q.100: Disallow leading plus signs
             if val.startswith("+"):
                 self.result.add_error(
-                    rule_id="Q.100",
+                    rule_id="numeric_no_plus_sign",
                     message=f"Numeric value '{val}' in item '{item_code}' has leading plus sign. "
                     f"Not allowed",
                     element_path=field_path,
@@ -157,7 +158,7 @@ class SectionQRSTValidator(BaseValidator):
                 )
 
     def _check_control_characters(
-        self, item: ET.Element, item_code: str, class_code: str, item_path: str
+        self, item: Element, item_code: str, class_code: str, item_path: str
     ) -> None:
         """
         Validate Rule Q.101: Disallow non-ASCII control characters.
@@ -179,7 +180,7 @@ class SectionQRSTValidator(BaseValidator):
 
                 if control_chars:
                     self.result.add_error(
-                        rule_id="Q.101",
+                        rule_id="text_no_control_chars",
                         message=f"Item '{item_code}' <{field_name}> contains non-ASCII control characters",
                         element_path=f"{item_path}/{field_name}",
                         details={"class_code": class_code, "item_code": item_code},
@@ -217,7 +218,7 @@ class SectionQRSTValidator(BaseValidator):
                 # Rule S.106: Hourly or Per-occurrence with AmountPerType=Period not allowed
                 if freq in ["Hourly", "Per-occurrence"] and amount_per_type == "Period":
                     self.result.add_error(
-                        rule_id="S.106",
+                        rule_id="frequency_not_with_period",
                         message=f"Item '{item_code}' has PaymentFrequency='{freq}' with AmountPerType='Period'. "
                         f"This combination is not allowed",
                         element_path=f"{item_path}/AmountPerType",
@@ -227,7 +228,7 @@ class SectionQRSTValidator(BaseValidator):
                 # Rule S.107: Monthly frequency with Within Range basis (check)
                 if freq == "Monthly" and amount_basis == "Within Range":
                     self.result.add_warning(
-                        rule_id="S.107",
+                        rule_id="frequency_range_warning",
                         message=f"Item '{item_code}' has PaymentFrequency='Monthly' with AmountBasis='Within Range'. "
                         f"Range should be expressed by occurrences, not conflicting frequencies",
                         element_path=f"{item_path}/AmountBasis",
@@ -237,7 +238,7 @@ class SectionQRSTValidator(BaseValidator):
                 # Rule S.108: During Term lifecycle with no frequency
                 if lifecycle == "During Term" and not freq:
                     self.result.add_error(
-                        rule_id="S.108",
+                        rule_id="during_term_needs_frequency",
                         message=f"Item '{item_code}' has Lifecycle='During Term' but no <PaymentFrequency>. "
                         f"Frequency is required for During Term charges",
                         element_path=f"{item_path}/Characteristics",
@@ -290,7 +291,7 @@ class SectionQRSTValidator(BaseValidator):
             for name, codes in name_counts.items():
                 if len(codes) > 1:
                     self.result.add_error(
-                        rule_id="T.109",
+                        rule_id="name_unique_in_class",
                         message=f"Duplicate item Name '{name}' found in class '{class_code}' "
                         f"(items: {', '.join(codes)}). Names should be unique within a class",
                         element_path=f"/ChargeOfferClass[@Code='{class_code}']",
@@ -308,14 +309,14 @@ class SectionQRSTValidator(BaseValidator):
             for item_hash, codes in hash_counts.items():
                 if len(codes) > 1:
                     self.result.add_error(
-                        rule_id="T.110",
+                        rule_id="no_duplicate_items",
                         message=f"Duplicate item definition found in class '{class_code}' "
                         f"(items: {', '.join(codes)}). Items have identical code and characteristics",
                         element_path=f"/ChargeOfferClass[@Code='{class_code}']",
                         details={"class_code": class_code, "item_codes": codes},
                     )
 
-    def _build_characteristics_hash(self, item: ET.Element) -> str:
+    def _build_characteristics_hash(self, item: Element) -> str:
         """
         Build a hash representing item characteristics for duplicate detection.
 

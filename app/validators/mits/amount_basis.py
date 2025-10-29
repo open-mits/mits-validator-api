@@ -4,13 +4,14 @@ Section H: Amount Basis & Per-Item Semantics (Rules 50-56)
 Validates AmountBasis field and its relationship with amount blocks.
 """
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 from app.validators.mits.enums import AmountBasis, validate_enum
 
 
-class SectionHValidator(BaseValidator):
+class AmountBasisValidator(BaseValidator):
     """
     Validator for Section H: Amount Basis.
 
@@ -25,7 +26,7 @@ class SectionHValidator(BaseValidator):
     """
 
     section_name = "Amount Basis"
-    section_id = "H"
+    section_id = "amount_basis"
 
     VALID_ITEM_TYPES = {
         "ChargeOfferItem",
@@ -52,7 +53,7 @@ class SectionHValidator(BaseValidator):
         return self.result
 
     def _validate_item_amount_basis(
-        self, item: ET.Element, item_code: str, class_code: str
+        self, item: Element, item_code: str, class_code: str
     ) -> None:
         """
         Validate AmountBasis for a single item.
@@ -80,7 +81,7 @@ class SectionHValidator(BaseValidator):
         if charge_requirement == "Included":
             if amount_basis:
                 self.result.add_error(
-                    rule_id="H.56",
+                    rule_id="basis_included_empty",
                     message=f"Item '{item_code}' has ChargeRequirement='Included' but non-empty AmountBasis='{amount_basis}'. "
                     f"AmountBasis must be empty for Included items",
                     element_path=f"{item_path}/AmountBasis",
@@ -96,10 +97,10 @@ class SectionHValidator(BaseValidator):
 
         # Rule H.50: Validate AmountBasis enumeration (if not empty)
         if amount_basis:
-            valid, error_msg = validate_enum(amount_basis, AmountBasis, "H.50", "AmountBasis")
+            valid, error_msg = validate_enum(amount_basis, AmountBasis, "basis_enum_valid", "AmountBasis")
             if not valid:
                 self.result.add_error(
-                    rule_id="H.50",
+                    rule_id="basis_enum_valid",
                     message=error_msg,
                     element_path=f"{item_path}/AmountBasis",
                     details={"class_code": class_code, "item_code": item_code},
@@ -109,7 +110,7 @@ class SectionHValidator(BaseValidator):
         # Rule H.37: AmountBasis can only be empty if ChargeRequirement="Included"
         if not amount_basis and charge_requirement != "Included":
             self.result.add_error(
-                rule_id="F.37",
+                rule_id="item_amount_basis_required",
                 message=f"Item '{item_code}' has empty AmountBasis but ChargeRequirement='{charge_requirement}'. "
                 f"AmountBasis can only be empty if ChargeRequirement='Included'",
                 element_path=f"{item_path}/AmountBasis",
@@ -124,7 +125,7 @@ class SectionHValidator(BaseValidator):
         # Rule H.38: PercentageOfCode present only when AmountBasis="Percentage Of"
         if percentage_of_code and amount_basis != "Percentage Of":
             self.result.add_error(
-                rule_id="F.38",
+                rule_id="item_percentage_code_when_needed",
                 message=f"Item '{item_code}' has <PercentageOfCode> but AmountBasis='{amount_basis}'. "
                 f"PercentageOfCode should only be present when AmountBasis='Percentage Of'",
                 element_path=f"{item_path}/PercentageOfCode",
@@ -139,7 +140,7 @@ class SectionHValidator(BaseValidator):
             )
 
     def _validate_included_amount_empty(
-        self, block: ET.Element, item_code: str, class_code: str, item_path: str, block_idx: int
+        self, block: Element, item_code: str, class_code: str, item_path: str, block_idx: int
     ) -> None:
         """
         Validate Rule H.56.2/3: Included items must have empty amounts and percentages.
@@ -159,7 +160,7 @@ class SectionHValidator(BaseValidator):
             amounts_text = self.get_text(amounts_elem)
             if amounts_text:
                 self.result.add_error(
-                    rule_id="H.56.2",
+                    rule_id="basis_included_amounts_empty",
                     message=f"Item '{item_code}' has ChargeRequirement='Included' but non-empty <Amounts>='{amounts_text}'. "
                     f"All amounts must be empty for Included items",
                     element_path=f"{block_path}/Amounts",
@@ -172,7 +173,7 @@ class SectionHValidator(BaseValidator):
             percentage_text = self.get_text(percentage_elem)
             if percentage_text:
                 self.result.add_error(
-                    rule_id="H.56.3",
+                    rule_id="basis_included_percentage_empty",
                     message=f"Item '{item_code}' has ChargeRequirement='Included' but non-empty <Percentage>='{percentage_text}'. "
                     f"All percentages must be empty for Included items",
                     element_path=f"{block_path}/Percentage",
@@ -181,7 +182,7 @@ class SectionHValidator(BaseValidator):
 
     def _validate_amount_block_for_basis(
         self,
-        block: ET.Element,
+        block: Element,
         amount_basis: str,
         item_code: str,
         class_code: str,
@@ -224,7 +225,7 @@ class SectionHValidator(BaseValidator):
             # Rule H.51.1: Must have Amounts (≥1)
             if amount_count == 0:
                 self.result.add_error(
-                    rule_id="H.51.1",
+                    rule_id="basis_explicit_amounts_nonempty",
                     message=f"Item '{item_code}' has AmountBasis='Explicit' but empty <Amounts>. "
                     f"At least one amount value is required",
                     element_path=f"{block_path}/Amounts",
@@ -234,7 +235,7 @@ class SectionHValidator(BaseValidator):
             # Rule H.51.2: Percentage must be empty
             if percentage_text:
                 self.result.add_error(
-                    rule_id="H.51.2",
+                    rule_id="basis_explicit_percentage_empty",
                     message=f"Item '{item_code}' has AmountBasis='Explicit' but non-empty <Percentage>='{percentage_text}'. "
                     f"Percentage must be empty for Explicit basis",
                     element_path=f"{block_path}/Percentage",
@@ -245,7 +246,7 @@ class SectionHValidator(BaseValidator):
             # Rule H.52.1: Percentage must be present
             if not percentage_text:
                 self.result.add_error(
-                    rule_id="H.52.1",
+                    rule_id="basis_percentage_has_value",
                     message=f"Item '{item_code}' has AmountBasis='Percentage Of' but empty <Percentage>. "
                     f"Percentage value is required",
                     element_path=f"{block_path}/Percentage",
@@ -255,7 +256,7 @@ class SectionHValidator(BaseValidator):
             # Rule H.52.2: Amounts must be empty
             if amounts_text:
                 self.result.add_error(
-                    rule_id="H.52.2",
+                    rule_id="basis_percentage_amounts_empty",
                     message=f"Item '{item_code}' has AmountBasis='Percentage Of' but non-empty <Amounts>='{amounts_text}'. "
                     f"Amounts must be empty for Percentage Of basis",
                     element_path=f"{block_path}/Amounts",
@@ -265,7 +266,7 @@ class SectionHValidator(BaseValidator):
             # Rule H.52.3: PercentageOfCode must be present
             if not percentage_of_code:
                 self.result.add_error(
-                    rule_id="H.52.3",
+                    rule_id="basis_percentage_has_code",
                     message=f"Item '{item_code}' has AmountBasis='Percentage Of' but empty <PercentageOfCode>. "
                     f"PercentageOfCode is required to reference the target item",
                     element_path=f"{item_path}/PercentageOfCode",
@@ -276,7 +277,7 @@ class SectionHValidator(BaseValidator):
             # Rule H.53.1: Accepts one Amounts value per block
             if amount_count > 1:
                 self.result.add_error(
-                    rule_id="H.53.1",
+                    rule_id="basis_range_single_value",
                     message=f"Item '{item_code}' has AmountBasis='Within Range' but {amount_count} amount values. "
                     f"Only one amount value is allowed per block for Within Range basis",
                     element_path=f"{block_path}/Amounts",
@@ -287,7 +288,7 @@ class SectionHValidator(BaseValidator):
             # Rule H.54.1: Must have ≥2 Amounts values
             if amount_count < 2:
                 self.result.add_error(
-                    rule_id="H.54.1",
+                    rule_id="basis_stepped_min_two",
                     message=f"Item '{item_code}' has AmountBasis='Stepped' but only {amount_count} amount value(s). "
                     f"At least 2 amount values are required for Stepped pricing",
                     element_path=f"{block_path}/Amounts",
@@ -301,7 +302,7 @@ class SectionHValidator(BaseValidator):
 
             if not has_amounts and not has_percentage:
                 self.result.add_error(
-                    rule_id="H.55.1",
+                    rule_id="basis_variable_not_both",
                     message=f"Item '{item_code}' has AmountBasis='Variable' but both <Amounts> and <Percentage> are empty. "
                     f"Variable basis requires either Amounts OR Percentage",
                     element_path=block_path,
@@ -309,7 +310,7 @@ class SectionHValidator(BaseValidator):
                 )
             elif has_amounts and has_percentage:
                 self.result.add_error(
-                    rule_id="H.55.1",
+                    rule_id="basis_variable_not_both",
                     message=f"Item '{item_code}' has AmountBasis='Variable' but both <Amounts> and <Percentage> are present. "
                     f"Variable basis requires either Amounts OR Percentage, not both",
                     element_path=block_path,

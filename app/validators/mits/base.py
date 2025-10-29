@@ -7,6 +7,7 @@ Provides common validation result structures and base validator classes.
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, List, Optional
+from xml.etree.ElementTree import Element
 
 from defusedxml import ElementTree as ET
 
@@ -23,7 +24,7 @@ class ValidationSeverity(Enum):
 class ValidationMessage:
     """A single validation message."""
 
-    rule_id: str  # e.g., "A.1", "B.7"
+    rule_id: str  # e.g., "xml_wellformed", "fee_in_valid_parent"
     severity: ValidationSeverity
     message: str
     element_path: Optional[str] = None  # XPath-like location
@@ -123,7 +124,7 @@ class BaseValidator:
     section_name: str = "Base"
     section_id: str = "X"
 
-    def __init__(self, root: ET.Element):
+    def __init__(self, root: Element):
         """
         Initialize validator with parsed XML root.
 
@@ -142,7 +143,7 @@ class BaseValidator:
         """
         raise NotImplementedError("Subclasses must implement validate()")
 
-    def get_element_path(self, element: ET.Element) -> str:
+    def get_element_path(self, element: Element) -> str:
         """
         Get a human-readable path for an element.
 
@@ -170,7 +171,7 @@ class BaseValidator:
 
         return "/" + "/".join(path_parts)
 
-    def get_text(self, element: ET.Element, default: str = "") -> str:
+    def get_text(self, element: Element, default: str = "") -> str:
         """
         Safely get text content from element.
 

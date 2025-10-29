@@ -6,12 +6,13 @@ Validates that fees appear in correct hierarchy contexts and use proper structur
 
 from typing import List, Set
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 
 
-class SectionBValidator(BaseValidator):
+class FeeHierarchyValidator(BaseValidator):
     """
     Validator for Section B: Fee Placement Scope.
 
@@ -25,7 +26,7 @@ class SectionBValidator(BaseValidator):
     """
 
     section_name = "Fee Placement Scope"
-    section_id = "B"
+    section_id = "fee_hierarchy"
 
     # Supported parent contexts for fees
     SUPPORTED_FEE_PARENTS = {"Property", "Building", "Floorplan", "ILS_Unit"}
@@ -52,7 +53,7 @@ class SectionBValidator(BaseValidator):
 
         return self.result
 
-    def _validate_fee_placement(self, class_elem: ET.Element) -> None:
+    def _validate_fee_placement(self, class_elem: Element) -> None:
         """
         Validate Rules B.7 & B.10: Fee must be under supported parent.
 
@@ -64,13 +65,13 @@ class SectionBValidator(BaseValidator):
 
         if parent is None:
             self.result.add_error(
-                rule_id="B.10",
+                rule_id="no_fee_outside_hierarchy",
                 message="<ChargeOfferClass> found outside supported parent contexts. "
                 f"Must be under one of: {', '.join(sorted(self.SUPPORTED_FEE_PARENTS))}",
                 element_path=self.get_element_path(class_elem),
             )
 
-    def _validate_class_structure(self, class_elem: ET.Element) -> None:
+    def _validate_class_structure(self, class_elem: Element) -> None:
         """
         Validate Rule B.9: Proper class/item/amount structure.
 
@@ -99,13 +100,13 @@ class SectionBValidator(BaseValidator):
             amounts = item.findall("ChargeOfferAmount")
             if not amounts:
                 self.result.add_error(
-                    rule_id="B.9",
+                    rule_id="class_item_amount_structure",
                     message=f"Offer item must contain at least one <ChargeOfferAmount> element",
                     element_path=item_path,
                     details={"class_code": class_code, "item_code": item_code},
                 )
 
-    def _find_fee_parent_context(self, element: ET.Element) -> str | None:
+    def _find_fee_parent_context(self, element: Element) -> str | None:
         """
         Find the nearest supported parent context for a fee element.
 
@@ -129,7 +130,7 @@ class SectionBValidator(BaseValidator):
         return None
 
 
-def find_all_with_context(root: ET.Element, tag: str, supported_parents: Set[str]) -> List[tuple[ET.Element, str | None]]:
+def find_all_with_context(root: Element, tag: str, supported_parents: Set[str]) -> List[tuple[Element, str | None]]:
     """
     Find all elements with a given tag and their parent context.
 

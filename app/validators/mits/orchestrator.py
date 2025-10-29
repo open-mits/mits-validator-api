@@ -10,21 +10,21 @@ from typing import Dict, List
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import ValidationResult
-from app.validators.mits.section_a_xml_basics import SectionAValidator, validate_xml_wellformed
-from app.validators.mits.section_b_fee_placement import SectionBValidator
-from app.validators.mits.section_c_identity import SectionCValidator
-from app.validators.mits.section_d_class_structure import SectionDValidator
-from app.validators.mits.section_e_class_limits import SectionEValidator
-from app.validators.mits.section_f_offer_items import SectionFValidator
-from app.validators.mits.section_g_characteristics import SectionGValidator
-from app.validators.mits.section_h_amount_basis import SectionHValidator
-from app.validators.mits.section_i_amount_blocks import SectionIValidator
-from app.validators.mits.section_j_frequency import SectionJValidator
-from app.validators.mits.section_k_pet_items import SectionKValidator
-from app.validators.mits.section_l_parking_items import SectionLValidator
-from app.validators.mits.section_m_storage_items import SectionMValidator
-from app.validators.mits.section_n_o_p_integrity import SectionNOPValidator
-from app.validators.mits.section_q_r_s_t_final import SectionQRSTValidator
+from app.validators.mits.xml_structure import XmlStructureValidator, validate_xml_wellformed
+from app.validators.mits.fee_hierarchy import FeeHierarchyValidator
+from app.validators.mits.identity_uniqueness import IdentityUniquenessValidator
+from app.validators.mits.charge_class import ChargeClassValidator
+from app.validators.mits.class_limits import ClassLimitsValidator
+from app.validators.mits.offer_item_structure import OfferItemStructureValidator
+from app.validators.mits.item_characteristics import ItemCharacteristicsValidator
+from app.validators.mits.amount_basis import AmountBasisValidator
+from app.validators.mits.amount_format import AmountFormatValidator
+from app.validators.mits.frequency_alignment import FrequencyAlignmentValidator
+from app.validators.mits.pet_validation import PetValidation
+from app.validators.mits.parking_validation import ParkingValidation
+from app.validators.mits.storage_validation import StorageValidation
+from app.validators.mits.cross_validation import CrossValidation
+from app.validators.mits.data_quality import DataQualityValidator
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +38,13 @@ def validate_mits_document(xml_text: str) -> Dict[str, List[str] | bool]:
     defined in the specification.
 
     Execution Order:
-        A-C: Container, placement, and identity (short-circuit on failure)
-        D-E: Class existence & limits
-        F-I: Items, characteristics, basis, and amount blocks
-        J-M: Per-type semantics and specialized items
-        N-P: Cross-field totals, references, and Included semantics
-        Q-T: Hygiene, dates, cadence/basis coherence, and duplicates
+        Phase 1: XML well-formedness (short-circuit on failure)
+        Phase 2: XML structure, fee hierarchy, identity (short-circuit on failure)
+        Phase 3: Class structure & limits
+        Phase 4: Items, characteristics, basis, and amount blocks
+        Phase 5: Frequency alignment and specialized items (pet/parking/storage)
+        Phase 6: Cross-validation, references, and included items
+        Phase 7: Data quality, hygiene, dates, and duplicates
 
     Args:
         xml_text: Raw XML text to validate
@@ -74,7 +75,7 @@ def validate_mits_document(xml_text: str) -> Dict[str, List[str] | bool]:
         root = ET.fromstring(xml_text.encode("utf-8"))
     except Exception as e:
         result.add_error(
-            rule_id="A.1",
+            rule_id="xml_wellformed",
             message=f"Failed to parse XML: {str(e)}",
         )
         return result.to_dict()
@@ -82,68 +83,68 @@ def validate_mits_document(xml_text: str) -> Dict[str, List[str] | bool]:
     # Phase 2: Sections A-C - Container, placement, identity (short-circuit on failure)
     logger.info("Validating Sections A-C: Container & Identity")
 
-    section_a = SectionAValidator(root)
+    section_a = XmlStructureValidator(root)
     result.merge(section_a.validate())
 
     if not result.valid:
         logger.warning("Critical validation errors in Sections A-C, stopping")
         return result.to_dict()
 
-    section_b = SectionBValidator(root)
+    section_b = FeeHierarchyValidator(root)
     result.merge(section_b.validate())
 
-    section_c = SectionCValidator(root)
+    section_c = IdentityUniquenessValidator(root)
     result.merge(section_c.validate())
 
     # Phase 3: Sections D-E - Class structure & limits
     logger.info("Validating Sections D-E: Class Structure")
 
-    section_d = SectionDValidator(root)
+    section_d = ChargeClassValidator(root)
     result.merge(section_d.validate())
 
-    section_e = SectionEValidator(root)
+    section_e = ClassLimitsValidator(root)
     result.merge(section_e.validate())
 
     # Phase 4: Sections F-I - Items, characteristics, basis, amounts
     logger.info("Validating Sections F-I: Items & Amounts")
 
-    section_f = SectionFValidator(root)
+    section_f = OfferItemStructureValidator(root)
     result.merge(section_f.validate())
 
-    section_g = SectionGValidator(root)
+    section_g = ItemCharacteristicsValidator(root)
     result.merge(section_g.validate())
 
-    section_h = SectionHValidator(root)
+    section_h = AmountBasisValidator(root)
     result.merge(section_h.validate())
 
-    section_i = SectionIValidator(root)
+    section_i = AmountFormatValidator(root)
     result.merge(section_i.validate())
 
     # Phase 5: Sections J-M - Per-type semantics & specialized items
     logger.info("Validating Sections J-M: Frequency & Specialized Items")
 
-    section_j = SectionJValidator(root)
+    section_j = FrequencyAlignmentValidator(root)
     result.merge(section_j.validate())
 
-    section_k = SectionKValidator(root)
+    section_k = PetValidation(root)
     result.merge(section_k.validate())
 
-    section_l = SectionLValidator(root)
+    section_l = ParkingValidation(root)
     result.merge(section_l.validate())
 
-    section_m = SectionMValidator(root)
+    section_m = StorageValidation(root)
     result.merge(section_m.validate())
 
     # Phase 6: Sections N-P - Cross-field integrity & references
     logger.info("Validating Sections N-P: Integrity & References")
 
-    section_nop = SectionNOPValidator(root)
+    section_nop = CrossValidation(root)
     result.merge(section_nop.validate())
 
     # Phase 7: Sections Q-T - Hygiene, dates, coherence, duplicates
     logger.info("Validating Sections Q-T: Hygiene & Duplicates")
 
-    section_qrst = SectionQRSTValidator(root)
+    section_qrst = DataQualityValidator(root)
     result.merge(section_qrst.validate())
 
     # Log summary

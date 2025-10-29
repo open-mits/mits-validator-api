@@ -6,12 +6,13 @@ Validates identity uniqueness and quality across Property hierarchy levels.
 
 from typing import Dict, Set
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 
 
-class SectionCValidator(BaseValidator):
+class IdentityUniquenessValidator(BaseValidator):
     """
     Validator for Section C: Per-Level Identity Hygiene.
 
@@ -23,7 +24,7 @@ class SectionCValidator(BaseValidator):
     """
 
     section_name = "Per-Level Identity Hygiene"
-    section_id = "C"
+    section_id = "identity_uniqueness"
 
     def validate(self) -> ValidationResult:
         """
@@ -39,7 +40,7 @@ class SectionCValidator(BaseValidator):
 
         return self.result
 
-    def _validate_property_identities(self, property_elem: ET.Element, property_id: str) -> None:
+    def _validate_property_identities(self, property_elem: Element, property_id: str) -> None:
         """
         Validate identity uniqueness within a single Property.
 
@@ -52,7 +53,7 @@ class SectionCValidator(BaseValidator):
             property_elem,
             "Building",
             property_id,
-            "C.11",
+            "building_id_unique",
         )
 
         # Rule 12: Validate Floorplan IDs
@@ -60,7 +61,7 @@ class SectionCValidator(BaseValidator):
             property_elem,
             "Floorplan",
             property_id,
-            "C.12",
+            "floorplan_id_unique",
         )
 
         # Rule 13: Validate ILS_Unit IDs
@@ -68,12 +69,12 @@ class SectionCValidator(BaseValidator):
             property_elem,
             "ILS_Unit",
             property_id,
-            "C.13",
+            "unit_id_unique",
         )
 
     def _validate_element_ids(
         self,
-        parent: ET.Element,
+        parent: Element,
         element_tag: str,
         property_id: str,
         rule_id: str,
@@ -96,7 +97,7 @@ class SectionCValidator(BaseValidator):
             # Rule 14: IDs must be non-empty without leading/trailing whitespace
             if not id_value:
                 self.result.add_error(
-                    rule_id="C.14",
+                    rule_id="id_no_whitespace",
                     message=f"<{element_tag}> element #{idx} in Property '{property_id}' "
                     f"has empty @IDValue attribute",
                     element_path=f"/Property[@IDValue='{property_id}']//{element_tag}[{idx}]",
@@ -105,7 +106,7 @@ class SectionCValidator(BaseValidator):
 
             if id_value != id_value.strip():
                 self.result.add_error(
-                    rule_id="C.14",
+                    rule_id="id_no_whitespace",
                     message=f"<{element_tag}> @IDValue '{id_value}' in Property '{property_id}' "
                     f"has leading or trailing whitespace",
                     element_path=f"/Property[@IDValue='{property_id}']//{element_tag}[@IDValue='{id_value}']",

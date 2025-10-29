@@ -4,13 +4,14 @@ Section K: Specialized Item — PetOfferItem (Rules 70-74)
 Validates PetOfferItem specific fields and semantics.
 """
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 from app.validators.mits.enums import PetAllowed, validate_enum
 
 
-class SectionKValidator(BaseValidator):
+class PetValidation(BaseValidator):
     """
     Validator for Section K: PetOfferItem.
 
@@ -23,7 +24,7 @@ class SectionKValidator(BaseValidator):
     """
 
     section_name = "PetOfferItem"
-    section_id = "K"
+    section_id = "pet_validation"
 
     def validate(self) -> ValidationResult:
         """
@@ -42,7 +43,7 @@ class SectionKValidator(BaseValidator):
 
         return self.result
 
-    def _validate_pet_item(self, item: ET.Element, item_code: str, class_code: str) -> None:
+    def _validate_pet_item(self, item: Element, item_code: str, class_code: str) -> None:
         """
         Validate a single PetOfferItem.
 
@@ -58,10 +59,10 @@ class SectionKValidator(BaseValidator):
         if allowed_elem is not None:
             allowed = self.get_text(allowed_elem)
             if allowed:
-                valid, error_msg = validate_enum(allowed, PetAllowed, "K.71", "Allowed")
+                valid, error_msg = validate_enum(allowed, PetAllowed, "pet_allowed_enum", "Allowed")
                 if not valid:
                     self.result.add_error(
-                        rule_id="K.71",
+                        rule_id="pet_allowed_enum",
                         message=error_msg,
                         element_path=f"{item_path}/Allowed",
                         details={"class_code": class_code, "item_code": item_code},
@@ -79,7 +80,7 @@ class SectionKValidator(BaseValidator):
 
                         if amounts_text:
                             self.result.add_error(
-                                rule_id="K.72",
+                                rule_id="pet_not_allowed_no_amount",
                                 message=f"Pet item '{item_code}' has Allowed='No' but non-empty <Amounts>='{amounts_text}'. "
                                 f"Amounts must be empty when pets are not allowed",
                                 element_path=f"{item_path}/ChargeOfferAmount[{idx}]/Amounts",
@@ -88,7 +89,7 @@ class SectionKValidator(BaseValidator):
 
                         if percentage_text:
                             self.result.add_error(
-                                rule_id="K.72",
+                                rule_id="pet_not_allowed_no_amount",
                                 message=f"Pet item '{item_code}' has Allowed='No' but non-empty <Percentage>='{percentage_text}'. "
                                 f"Percentage must be empty when pets are not allowed",
                                 element_path=f"{item_path}/ChargeOfferAmount[{idx}]/Percentage",
@@ -107,7 +108,7 @@ class SectionKValidator(BaseValidator):
                 pattern = r"^\d+(\.\d+)?\s*(lb|lbs|kg|kgs|pounds|kilos)?$"
                 if not re.match(pattern, max_weight, re.IGNORECASE):
                     self.result.add_error(
-                        rule_id="K.73",
+                        rule_id="pet_weight_format",
                         message=f"Pet item '{item_code}' has invalid <MaximumWeight>='{max_weight}'. "
                         f"Expected format: number with optional unit (e.g., '50lb', '25kg', '30')",
                         element_path=f"{item_path}/MaximumWeight",
@@ -127,7 +128,7 @@ class SectionKValidator(BaseValidator):
 
                     if not (max_type_elem is not None and self.get_text(max_type_elem)):
                         self.result.add_error(
-                            rule_id="K.74",
+                            rule_id="pet_deposit_refund_required",
                             message=f"Pet deposit '{item_code}' has Refundability='Deposit' but missing <RefundabilityMaxType>",
                             element_path=f"{item_path}/Characteristics",
                             details={"class_code": class_code, "item_code": item_code},
@@ -135,7 +136,7 @@ class SectionKValidator(BaseValidator):
 
                     if not (max_elem is not None and self.get_text(max_elem)):
                         self.result.add_error(
-                            rule_id="K.74",
+                            rule_id="pet_deposit_refund_required",
                             message=f"Pet deposit '{item_code}' has Refundability='Deposit' but missing <RefundabilityMax>",
                             element_path=f"{item_path}/Characteristics",
                             details={"class_code": class_code, "item_code": item_code},

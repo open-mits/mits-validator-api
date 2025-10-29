@@ -11,7 +11,7 @@ from defusedxml import ElementTree as ET
 from app.validators.mits.base import BaseValidator, ValidationResult
 
 
-class SectionEValidator(BaseValidator):
+class ClassLimitsValidator(BaseValidator):
     """
     Validator for Section E: Class Limits.
 
@@ -25,7 +25,7 @@ class SectionEValidator(BaseValidator):
     """
 
     section_name = "Class Limits"
-    section_id = "E"
+    section_id = "class_limits"
 
     def validate(self) -> ValidationResult:
         """
@@ -51,7 +51,7 @@ class SectionEValidator(BaseValidator):
                 max_occur_text = self.get_text(max_occur_elem)
                 if not self._validate_positive_integer(max_occur_text, min_value=1):
                     self.result.add_error(
-                        rule_id="E.21",
+                        rule_id="limit_max_occurrences_valid",
                         message=f"<MaximumOccurences> in class '{code}' must be an integer ≥ 1, "
                         f"found '{max_occur_text}'",
                         element_path=f"{limits_path}/MaximumOccurences",
@@ -64,7 +64,7 @@ class SectionEValidator(BaseValidator):
                 max_amount_text = self.get_text(max_amount_elem)
                 if not self._validate_decimal(max_amount_text, min_value=0):
                     self.result.add_error(
-                        rule_id="E.22",
+                        rule_id="limit_max_amount_valid",
                         message=f"<MaximumAmount> in class '{code}' must be a decimal ≥ 0 "
                         f"with no currency symbols, found '{max_amount_text}'",
                         element_path=f"{limits_path}/MaximumAmount",
@@ -79,7 +79,7 @@ class SectionEValidator(BaseValidator):
                     ic_text = self.get_text(ic_elem)
                     if not ic_text:
                         self.result.add_error(
-                            rule_id="E.24",
+                            rule_id="limit_internal_code_nonempty",
                             message=f"<InternalCode> #{idx} in <AppliesTo> of class '{code}' "
                             f"must be a non-empty string",
                             element_path=f"{limits_path}/AppliesTo/InternalCode[{idx}]",

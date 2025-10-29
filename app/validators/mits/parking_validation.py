@@ -4,13 +4,14 @@ Section L: Specialized Item — ParkingOfferItem (Rules 75-78)
 Validates ParkingOfferItem specific fields and semantics.
 """
 
+from xml.etree.ElementTree import Element
 from defusedxml import ElementTree as ET
 
 from app.validators.mits.base import BaseValidator, ValidationResult
 from app.validators.mits.enums import ParkingElectric, ParkingSpaceType, validate_enum
 
 
-class SectionLValidator(BaseValidator):
+class ParkingValidation(BaseValidator):
     """
     Validator for Section L: ParkingOfferItem.
 
@@ -23,7 +24,7 @@ class SectionLValidator(BaseValidator):
     """
 
     section_name = "ParkingOfferItem"
-    section_id = "L"
+    section_id = "parking_validation"
 
     def validate(self) -> ValidationResult:
         """
@@ -42,7 +43,7 @@ class SectionLValidator(BaseValidator):
 
         return self.result
 
-    def _validate_parking_item(self, item: ET.Element, item_code: str, class_code: str) -> None:
+    def _validate_parking_item(self, item: Element, item_code: str, class_code: str) -> None:
         """
         Validate a single ParkingOfferItem.
 
@@ -67,10 +68,10 @@ class SectionLValidator(BaseValidator):
         if electric_elem is not None:
             electric = self.get_text(electric_elem)
             if electric:
-                valid, error_msg = validate_enum(electric, ParkingElectric, "L.77", "Electric")
+                valid, error_msg = validate_enum(electric, ParkingElectric, "parking_electric_enum", "Electric")
                 if not valid:
                     self.result.add_error(
-                        rule_id="L.77",
+                        rule_id="parking_electric_enum",
                         message=error_msg,
                         element_path=f"{item_path}/Electric",
                         details={"class_code": class_code, "item_code": item_code},
@@ -81,10 +82,10 @@ class SectionLValidator(BaseValidator):
         if regular_space_elem is not None:
             regular_space = self.get_text(regular_space_elem)
             if regular_space:
-                valid, error_msg = validate_enum(regular_space, ParkingSpaceType, "L.78", "RegularSpace")
+                valid, error_msg = validate_enum(regular_space, ParkingSpaceType, "parking_space_enum", "RegularSpace")
                 if not valid:
                     self.result.add_error(
-                        rule_id="L.78",
+                        rule_id="parking_space_enum",
                         message=error_msg,
                         element_path=f"{item_path}/RegularSpace",
                         details={"class_code": class_code, "item_code": item_code},
@@ -95,10 +96,10 @@ class SectionLValidator(BaseValidator):
         if handicapped_elem is not None:
             handicapped = self.get_text(handicapped_elem)
             if handicapped:
-                valid, error_msg = validate_enum(handicapped, ParkingSpaceType, "L.78", "Handicapped")
+                valid, error_msg = validate_enum(handicapped, ParkingSpaceType, "parking_space_enum", "Handicapped")
                 if not valid:
                     self.result.add_error(
-                        rule_id="L.78",
+                        rule_id="parking_space_enum",
                         message=error_msg,
                         element_path=f"{item_path}/Handicapped",
                         details={"class_code": class_code, "item_code": item_code},
