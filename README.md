@@ -1,652 +1,385 @@
-# MITS Validator API
+# mits-validator-api
 
-[![CI](https://github.com/your-org/mits-validator-api/workflows/CI/badge.svg)](https://github.com/your-org/mits-validator-api/actions)
-[![codecov](https://codecov.io/gh/your-org/mits-validator-api/branch/main/graph/badge.svg)](https://codecov.io/gh/your-org/mits-validator-api)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Production-grade FastAPI service for validating **MITS 5.0 (Rental Options & Fees)** XML documents.
 
-Production-grade FastAPI service for validating MTS5 (RETTC) XML payloads. Built with security, performance, and extensibility in mind.
+Implements all **110 validation rules** defined in the MITS 5.0 specification, organized into 20 logical sections (A-T).
 
 ## Features
 
-- ✅ **Secure XML Parsing**: Uses `defusedxml` to protect against XXE, entity expansion, and other XML-based attacks
-- 🚀 **High Performance**: Async FastAPI with configurable worker processes
-- 🔒 **Rate Limiting**: IP-based rate limiting to prevent abuse
-- 📊 **Comprehensive Logging**: JSON-formatted structured logging with request ID correlation
-- 🧪 **Well Tested**: >90% test coverage with unit and property-based tests
-- 🔧 **Production Ready**: Docker support, health checks, graceful shutdown
-- 📚 **Interactive Docs**: Auto-generated OpenAPI/Swagger documentation
-- 🎯 **Extensible**: Easy-to-extend validator architecture for adding custom validation rules
+### Core Validation
+- **Comprehensive MITS 5.0 Validation**: All 110 rules across sections A-T
+- **Structured Error Reporting**: Clear, actionable messages with rule IDs and element paths
+- **Well-formedness & Encoding**: UTF-8 validation, entity protection
+- **Class & Item Structure**: ChargeOfferClass, ChargeOfferItem validation
+- **Amount Semantics**: Explicit, Percentage Of, Stepped, Variable, Included
+- **Specialized Items**: Pet, Parking, Storage offer validation
+- **Cross-validation**: Reference integrity, circular dependency detection
+- **Duplicate Detection**: Name uniqueness, exact duplicate identification
 
-## Table of Contents
+### Security & Performance
+- **Secure XML Parsing**: defusedxml with XXE and entity expansion protection
+- **Rate Limiting**: 60 requests/minute per IP (configurable)
+- **Body Size Limits**: 512 KB max (configurable)
+- **Timeout Protection**: 2-second validation timeout
+- **Short-circuit Validation**: Fail fast on critical errors
 
-- [Quick Start](#quick-start)
-- [API Documentation](#api-documentation)
-- [Architecture](#architecture)
-- [Security](#security)
-- [Configuration](#configuration)
-- [Development](#development)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [Contributing](#contributing)
+### Developer Experience
+- **FastAPI Framework**: Modern, async Python API
+- **OpenAPI Documentation**: Interactive docs at `/docs`
+- **Structured Logging**: JSON logs with request ID correlation
+- **Health Checks**: `/healthz` endpoint
+- **Docker Support**: One-command deployment
+- **Comprehensive Tests**: >90% coverage with unit and integration tests
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.11 or higher
-- pip or uv package manager
-- Docker (optional, for containerized deployment)
-
-### Installation
-
-1. **Clone the repository**:
-```bash
-git clone https://github.com/your-org/mits-validator-api.git
-cd mits-validator-api
-```
-
-2. **Install dependencies**:
-```bash
-# Using pip
-pip install -e ".[dev]"
-
-# Or using make
-make dev-install
-```
-
-3. **Configure environment** (optional):
-```bash
-cp .env.example .env
-# Edit .env with your preferred settings
-```
-
-4. **Run the application**:
-```bash
-# Using uvicorn directly
-uvicorn app.main:app --reload --port 8080
-
-# Or using make
-make run
-```
-
-5. **Access the API**:
-- API: http://localhost:8080
-- Interactive docs: http://localhost:8080/docs
-- ReDoc: http://localhost:8080/redoc
-- Health check: http://localhost:8080/healthz
-
-### Docker Quick Start
+### Using Docker (Recommended)
 
 ```bash
-# Build and run with Docker Compose
+# Start the service
 docker-compose up -d
 
-# Or use Makefile
-make docker-build
-make docker-run
-
-# View logs
-make docker-logs
-
-# Stop
-make docker-stop
+# Validate a document
+curl -X POST http://localhost:8080/v5.0/validate \
+  -H "Content-Type: application/xml" \
+  --data-binary @your_mits_file.xml
 ```
 
-## API Documentation
+See [MITS_QUICKSTART.md](MITS_QUICKSTART.md) for detailed examples.
 
-### Endpoint: `POST /v5.0/validate`
+### Local Development
 
-Validates MTS5 (RETTC) XML payloads for well-formedness and compliance.
+```bash
+# Install dependencies
+pip install -e .
 
-#### Request Formats
+# Run tests
+make test
 
-**Option 1: Raw XML Body**
+# Start development server
+make serve
+```
+
+See [QUICKSTART.md](QUICKSTART.md) for complete setup instructions.
+
+## API Examples
+
+### Valid Document
+
+**Request:**
 
 ```bash
 curl -X POST http://localhost:8080/v5.0/validate \
   -H "Content-Type: application/xml" \
-  --data '<root><item>value</item></root>'
+  --data '<?xml version="1.0" encoding="UTF-8"?>
+<PhysicalProperty>
+    <Property IDValue="1">
+        <ChargeOfferClass Code="APP">
+            <ChargeOfferItem InternalCode="app_fee">
+                <Name>Application Fee</Name>
+                <Description>One-time application fee</Description>
+                <Characteristics>
+                    <ChargeRequirement>Mandatory</ChargeRequirement>
+                    <Lifecycle>At Application</Lifecycle>
+                    <PaymentFrequency>One-time</PaymentFrequency>
+                </Characteristics>
+                <AmountBasis>Explicit</AmountBasis>
+                <ChargeOfferAmount>
+                    <Amounts>50.00</Amounts>
+                </ChargeOfferAmount>
+            </ChargeOfferItem>
+        </ChargeOfferClass>
+    </Property>
+</PhysicalProperty>'
 ```
 
-**Option 2: JSON-Wrapped XML**
+**Response:**
+
+```json
+{
+    "valid": true,
+    "errors": [],
+    "warnings": [],
+    "info": []
+}
+```
+
+### Invalid Document
+
+**Request:**
 
 ```bash
 curl -X POST http://localhost:8080/v5.0/validate \
-  -H "Content-Type: application/json" \
-  -d '{"xml": "<root><item>value</item></root>"}'
-```
-
-#### Response Format
-
-```json
-{
-  "valid": true,
-  "errors": [],
-  "warnings": [],
-  "info": []
-}
-```
-
-#### Status Codes
-
-| Code | Description |
-|------|-------------|
-| 200  | Request processed successfully (check `valid` field for result) |
-| 400  | Malformed request (invalid content type, empty body, etc.) |
-| 413  | Request body too large (exceeds configured limit) |
-| 422  | Validation error in request format |
-| 429  | Rate limit exceeded |
-| 500  | Internal server error |
-
-#### Examples
-
-**Valid XML**:
-```bash
-curl -s -X POST http://localhost:8080/v5.0/validate \
   -H "Content-Type: application/xml" \
-  --data '<?xml version="1.0"?>
-<root>
-  <header>
-    <timestamp>2025-10-27T10:00:00Z</timestamp>
-  </header>
-  <body>
-    <item id="1">
-      <name>Test</name>
-    </item>
-  </body>
-</root>'
+  --data '<?xml version="1.0" encoding="UTF-8"?>
+<PhysicalProperty>
+    <Property IDValue="1">
+        <ChargeOfferClass Code="APP">
+            <ChargeOfferItem InternalCode="app_fee">
+                <!-- Missing Name and Description -->
+                <Characteristics>
+                    <ChargeRequirement>Mandatory</ChargeRequirement>
+                </Characteristics>
+            </ChargeOfferItem>
+        </ChargeOfferClass>
+    </Property>
+</PhysicalProperty>'
 ```
 
-Response:
+**Response:**
+
 ```json
 {
-  "valid": true,
-  "errors": [],
-  "warnings": [],
-  "info": []
+    "valid": false,
+    "errors": [
+        "[F.30] Item 'app_fee' in class 'APP' missing required <Name> element",
+        "[F.31] Item 'app_fee' in class 'APP' missing required <Description> element",
+        "[F.32] Item 'app_fee' in class 'APP' missing required <Characteristics> element",
+        "[F.33] Item 'app_fee' in class 'APP' must contain at least one <ChargeOfferAmount> element"
+    ],
+    "warnings": [],
+    "info": []
 }
 ```
 
-**Invalid XML**:
-```bash
-curl -s -X POST http://localhost:8080/v5.0/validate \
-  -H "Content-Type: application/json" \
-  -d '{"xml": "<root><unclosed>"}'
-```
+## Validation Rules
 
-Response:
-```json
-{
-  "valid": false,
-  "errors": ["Invalid XML"],
-  "warnings": [],
-  "info": []
-}
-```
+The validator implements **110 rules** organized into 20 sections:
 
-### Health Check Endpoint
+| Section | Rules | Description |
+|---------|-------|-------------|
+| **A** | 1-6 | XML Container & Basics |
+| **B** | 7-10 | Fee Placement Scope |
+| **C** | 11-14 | Per-Level Identity Hygiene |
+| **D** | 15-20 | ChargeOfferClass Structure |
+| **E** | 21-26 | Class Limits |
+| **F** | 27-41 | Offer Item Structure |
+| **G** | 42-49 | Item Characteristics |
+| **H** | 50-56 | Amount Basis |
+| **I** | 57-65 | Amount Blocks |
+| **J** | 66-69 | AmountPerType & Frequency |
+| **K** | 70-74 | PetOfferItem |
+| **L** | 75-78 | ParkingOfferItem |
+| **M** | 79-81 | StorageOfferItem |
+| **N** | 82-89 | Intra-class Integrity |
+| **O** | 90-94 | Percentage-of References |
+| **P** | 95-97 | Included Items |
+| **Q** | 98-102 | Text & Whitespace Hygiene |
+| **R** | 103-105 | Date/Time Consistency |
+| **S** | 106-108 | Frequency vs Basis |
+| **T** | 109-110 | Duplicates & Collisions |
 
-```bash
-curl http://localhost:8080/healthz
-```
-
-Response:
-```json
-{
-  "status": "healthy",
-  "service": "mits-validator-api",
-  "version": "0.1.0"
-}
-```
+See [MITS_VALIDATOR_GUIDE.md](MITS_VALIDATOR_GUIDE.md) for complete rule documentation.
 
 ## Architecture
 
-### High-Level Overview
-
 ```
-┌─────────────┐
-│   Client    │
-└──────┬──────┘
-       │ HTTP Request
-       ↓
-┌─────────────────────────────────────────────────┐
-│              FastAPI Application                │
-│  ┌───────────────────────────────────────────┐  │
-│  │         Middleware Stack                  │  │
-│  │  • Request ID Generation                  │  │
-│  │  • Body Size Limiting                     │  │
-│  │  • JSON Logging                           │  │
-│  │  • Rate Limiting (slowapi)                │  │
-│  └───────────────────────────────────────────┘  │
-│                     ↓                            │
-│  ┌───────────────────────────────────────────┐  │
-│  │      API Router (v5.0/validate)           │  │
-│  │  • Content-Type validation                │  │
-│  │  • Request body parsing                   │  │
-│  │  • Timeout protection                     │  │
-│  └───────────────────────────────────────────┘  │
-│                     ↓                            │
-│  ┌───────────────────────────────────────────┐  │
-│  │       Validation Service Layer            │  │
-│  │  • Input sanitization                     │  │
-│  │  • Validator orchestration                │  │
-│  │  • Result aggregation                     │  │
-│  └───────────────────────────────────────────┘  │
-│                     ↓                            │
-│  ┌───────────────────────────────────────────┐  │
-│  │           Validator Modules               │  │
-│  │  • xml_basic: Well-formedness check       │  │
-│  │  • [Future]: Schema validation            │  │
-│  │  • [Future]: Business rule validation     │  │
-│  └───────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────┘
-                     ↓
-              ┌──────────────┐
-              │  defusedxml  │
-              │  (Safe Parse)│
-              └──────────────┘
-```
-
-### Directory Structure
-
-```
-mits-validator-api/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                   # FastAPI app factory
-│   ├── config.py                 # Settings (pydantic-settings)
-│   ├── middleware.py             # Custom middleware
-│   ├── errors.py                 # Exception handlers
-│   ├── security.py               # Rate limiting & sanitization
-│   ├── api/
+app/
+├── validators/
+│   ├── mits/                    # MITS 5.0 validators (110 rules)
 │   │   ├── __init__.py
-│   │   └── v5.py                 # Validation endpoint
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── dto.py                # Pydantic models
-│   ├── services/
-│   │   ├── __init__.py
-│   │   └── validation_service.py # Orchestration layer
-│   └── validators/
-│       ├── __init__.py
-│       └── xml_basic.py          # Well-formedness validator
-├── tests/
-│   ├── conftest.py               # Pytest fixtures
-│   ├── test_api_validate.py     # API tests
-│   ├── test_xml_basic.py        # Validator tests
-│   └── test_validation_service.py
-├── .github/workflows/
-│   └── ci.yml                    # CI/CD pipeline
-├── pyproject.toml                # Project metadata & dependencies
-├── Dockerfile                    # Production container
-├── docker-compose.yml            # Local development
-├── Makefile                      # Development commands
-├── pytest.ini                    # Test configuration
-└── README.md
+│   │   ├── base.py              # Base classes, ValidationResult
+│   │   ├── enums.py             # Enumeration definitions
+│   │   ├── orchestrator.py      # Main coordinator
+│   │   ├── section_a_xml_basics.py      # Rules 1-6
+│   │   ├── section_b_fee_placement.py   # Rules 7-10
+│   │   ├── section_c_identity.py        # Rules 11-14
+│   │   ├── section_d_class_structure.py # Rules 15-20
+│   │   ├── section_e_class_limits.py    # Rules 21-26
+│   │   ├── section_f_offer_items.py     # Rules 27-41
+│   │   ├── section_g_characteristics.py # Rules 42-49
+│   │   ├── section_h_amount_basis.py    # Rules 50-56
+│   │   ├── section_i_amount_blocks.py   # Rules 57-65
+│   │   ├── section_j_frequency.py       # Rules 66-69
+│   │   ├── section_k_pet_items.py       # Rules 70-74
+│   │   ├── section_l_parking_items.py   # Rules 75-78
+│   │   ├── section_m_storage_items.py   # Rules 79-81
+│   │   ├── section_n_o_p_integrity.py   # Rules 82-97
+│   │   └── section_q_r_s_t_final.py     # Rules 98-110
+│   └── xml_basic.py            # Basic XML validation
+├── api/
+│   └── v5.py                   # POST /v5.0/validate endpoint
+├── services/
+│   └── validation_service.py   # Orchestration layer
+├── models/
+│   └── dto.py                  # Request/Response models
+├── config.py                   # Settings management
+├── middleware.py               # Request ID, logging, body limits
+├── security.py                 # Rate limiting, input sanitization
+└── main.py                     # FastAPI application
 ```
 
-## Security
+## Testing
 
-### XML Attack Prevention
+```bash
+# Run all tests
+make test
 
-This service uses `defusedxml` to protect against common XML-based attacks:
+# MITS validator tests only
+pytest tests/validators/mits/ -v
 
-| Attack Type | Protection Method |
-|-------------|-------------------|
-| **XXE (XML External Entity)** | External entity expansion disabled |
-| **Billion Laughs** | Entity expansion limits enforced |
-| **DTD Retrieval** | DTD processing disabled |
-| **Quadratic Blowup** | Parser configured with safe defaults |
+# With coverage
+pytest --cov=app --cov-report=html
 
-### Rate Limiting
+# Test with official files
+curl -X POST http://localhost:8080/v5.0/validate \
+  -H "Content-Type: application/xml" \
+  --data-binary @tests/test_full.xml
+```
 
-- **Default**: 60 requests per minute per IP address
-- **Configurable**: Via `RATE_LIMIT` environment variable
-- **Strategy**: Token bucket algorithm using `slowapi`
-- **Bypass**: Rate limiting can be disabled in testing environments
-
-### Input Validation
-
-- **Body Size Limit**: 512 KB default (configurable)
-- **Character Validation**: Rejects illegal XML 1.0 control characters
-- **BOM Stripping**: Automatically removes UTF-8 BOM
-- **Timeout Protection**: 2-second default timeout for parsing operations
-
-### Best Practices
-
-1. **Always use HTTPS** in production to encrypt data in transit
-2. **Configure CORS** appropriately via `ALLOWED_ORIGINS`
-3. **Monitor rate limits** and adjust based on legitimate traffic patterns
-4. **Review logs** regularly for suspicious patterns
-5. **Keep dependencies updated** to patch security vulnerabilities
+Test files included:
+- `tests/test_full.xml`: Complete MITS 5.0 document (13,868 lines)
+- `tests/test_partial.xml`: Partial document for specific scenarios
 
 ## Configuration
 
-Configuration is managed via environment variables. See `.env.example` for all available options.
-
-### Key Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MAX_BODY_BYTES` | 524288 (512 KB) | Maximum request body size |
-| `RATE_LIMIT` | "60/minute" | Rate limit per IP |
-| `REQUEST_TIMEOUT_SECONDS` | 2 | XML parsing timeout |
-| `MAX_XML_DEPTH` | 100 | Maximum XML nesting depth |
-| `LOG_LEVEL` | INFO | Logging verbosity |
-| `ENABLE_DOCS` | true | Enable OpenAPI docs |
-| `ALLOWED_ORIGINS` | [] | CORS allowed origins |
-
-### Environment Files
+Environment variables (`.env` or `docker-compose.yml`):
 
 ```bash
-# Development
-cp .env.example .env
-# Edit .env for local settings
+# Service
+ENVIRONMENT=development
+LOG_LEVEL=INFO
+ENABLE_DOCS=true
 
-# Production
-# Set environment variables in your deployment platform
-# Do NOT commit .env files to version control
+# Security
+MAX_BODY_BYTES=524288          # 512 KB max request size
+RATE_LIMIT=60/minute           # Rate limiting
+REQUEST_TIMEOUT_SECONDS=2      # Validation timeout
+
+# CORS
+ALLOWED_ORIGINS=               # Comma-separated origins (empty = disabled)
+ALLOW_CREDENTIALS=false
+ALLOWED_METHODS=POST
+ALLOWED_HEADERS=*
 ```
+
+## API Endpoints
+
+### `POST /v5.0/validate`
+
+Validates MITS 5.0 XML documents.
+
+**Headers:**
+- `Content-Type`: `application/xml` or `text/xml`
+
+**Body:** Raw XML document
+
+**Response:** Always `200 OK` with validation results
+
+```json
+{
+    "valid": boolean,
+    "errors": ["Rule-based error messages with [RULE_ID]"],
+    "warnings": ["Warning messages"],
+    "info": ["Informational messages"]
+}
+```
+
+**Error Scenarios (4xx/5xx):**
+- `413 Request Entity Too Large`: Body exceeds MAX_BODY_BYTES
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Unexpected server error
+
+### `GET /healthz`
+
+Health check endpoint.
+
+**Response:** `200 OK`
+
+```json
+{
+    "status": "healthy"
+}
+```
+
+### `GET /docs`
+
+Interactive OpenAPI documentation (if `ENABLE_DOCS=true`).
+
+## Security
+
+### XXE Protection
+
+Uses `defusedxml` with:
+- External entity expansion disabled
+- DTD processing disabled
+- Entity reference limits enforced
+
+### Rate Limiting
+
+IP-based token bucket (configurable):
+- Default: 60 requests/minute per IP
+- Returns `429 Too Many Requests` when exceeded
+
+### Input Sanitization
+
+- BOM stripping
+- Control character validation
+- Length checks before processing
+- UTF-8 encoding enforcement
+
+### Timeouts
+
+- 2-second timeout for validation operations
+- Prevents CPU exhaustion on malformed documents
+
+## Documentation
+
+- **[MITS_QUICKSTART.md](MITS_QUICKSTART.md)**: Quick start guide with examples
+- **[MITS_VALIDATOR_GUIDE.md](MITS_VALIDATOR_GUIDE.md)**: Complete validation rule reference
+- **[QUICKSTART.md](QUICKSTART.md)**: Local development setup
+- **[DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md)**: Docker deployment guide
+- **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)**: Technical architecture details
 
 ## Development
-
-### Setup
-
-```bash
-# Install with dev dependencies
-make dev-install
-
-# Or manually
-pip install -e ".[dev]"
-```
 
 ### Running Locally
 
 ```bash
-# Development server with auto-reload
-make run
+# Install dependencies
+pip install -e .
 
-# Production mode
+# Run linters
+make lint
+
+# Format code
+make format
+
+# Type check
+make typecheck
+
+# Run tests
+make test
+
+# Start dev server
 make serve
 ```
 
+### Adding Custom Validators
+
+See [MITS_VALIDATOR_GUIDE.md](MITS_VALIDATOR_GUIDE.md) for instructions on:
+- Adding new validation rules
+- Creating custom sections
+- Extending existing validators
+
 ### Code Quality
 
-```bash
-# Run all checks
-make check
-
-# Individual checks
-make lint          # Run ruff linter
-make format-check  # Check code formatting
-make typecheck     # Run mypy type checker
-
-# Auto-fix issues
-make fix           # Auto-fix lint and format issues
-```
-
-### Adding New Validators
-
-To add a new validation rule:
-
-1. **Create validator module**: `app/validators/my_validator.py`
-
-```python
-def validate_my_rule(xml_text: str) -> bool:
-    """
-    Validate custom rule.
-    
-    Args:
-        xml_text: XML content as string
-    
-    Returns:
-        True if valid, False otherwise
-    """
-    # Your validation logic here
-    return True
-```
-
-2. **Register in service**: Edit `app/services/validation_service.py`
-
-```python
-from app.validators.my_validator import validate_my_rule
-
-def validate(xml_text: str) -> Dict[str, List[str] | bool]:
-    # ... existing code ...
-    
-    # Add your validator
-    if not validate_my_rule(sanitized_xml):
-        errors.append("Custom validation failed")
-    
-    # ... rest of code ...
-```
-
-3. **Add tests**: Create `tests/test_my_validator.py`
-
-4. **Update documentation**: Add details to this README
-
-## Testing
-
-### Running Tests
-
-```bash
-# Run all tests with coverage
-make test
-
-# Fast run (no coverage)
-make test-fast
-
-# Verbose output
-make test-verbose
-
-# Run specific test file
-pytest tests/test_xml_basic.py -v
-
-# Run specific test
-pytest tests/test_api_validate.py::TestValidationEndpoint::test_validate_raw_xml_valid -v
-```
-
-### Coverage Requirements
-
-- **Minimum**: 90% code coverage (enforced in CI)
-- **Reports**: Generated in `htmlcov/` directory
-- **View coverage**: Open `htmlcov/index.html` in browser
-
-### Test Categories
-
-- **Unit Tests**: Individual component tests
-- **Integration Tests**: End-to-end API tests
-- **Property Tests**: Hypothesis-based fuzzing tests
-- **Security Tests**: XXE and attack vector tests
-
-## Deployment
-
-### Docker Deployment
-
-**Build image**:
-```bash
-docker build -t mits-validator-api:latest .
-```
-
-**Run container**:
-```bash
-docker run -d \
-  -p 8080:8080 \
-  -e MAX_BODY_BYTES=524288 \
-  -e RATE_LIMIT="100/minute" \
-  --name mits-validator \
-  mits-validator-api:latest
-```
-
-### Docker Compose
-
-```bash
-# Start services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
-
-### Kubernetes Example
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mits-validator-api
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: mits-validator-api
-  template:
-    metadata:
-      labels:
-        app: mits-validator-api
-    spec:
-      containers:
-      - name: api
-        image: mits-validator-api:latest
-        ports:
-        - containerPort: 8080
-        env:
-        - name: ENVIRONMENT
-          value: "production"
-        - name: LOG_LEVEL
-          value: "INFO"
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8080
-          initialDelaySeconds: 10
-          periodSeconds: 30
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mits-validator-api
-spec:
-  selector:
-    app: mits-validator-api
-  ports:
-  - port: 80
-    targetPort: 8080
-  type: LoadBalancer
-```
-
-### Production Checklist
-
-- [ ] Set `ENVIRONMENT=production`
-- [ ] Configure appropriate `RATE_LIMIT`
-- [ ] Set up HTTPS/TLS termination
-- [ ] Configure `ALLOWED_ORIGINS` for CORS
-- [ ] Set up log aggregation (e.g., ELK, Splunk)
-- [ ] Configure monitoring and alerts
-- [ ] Set resource limits (CPU/memory)
-- [ ] Enable health checks
-- [ ] Set up auto-scaling policies
-- [ ] Review and adjust `MAX_BODY_BYTES`
-- [ ] Disable `ENABLE_DOCS` in production (optional)
-
-## CI/CD
-
-### GitHub Actions
-
-The project includes a comprehensive CI/CD pipeline that runs on every push and pull request:
-
-1. **Linting**: Checks code style with `ruff` and `black`
-2. **Type Checking**: Static analysis with `mypy`
-3. **Testing**: Runs test suite on Python 3.11 and 3.12
-4. **Security Scanning**: Analyzes code with `bandit` and checks for known vulnerabilities
-5. **Build**: Creates Docker image and verifies build succeeds
-
-### Local CI Simulation
-
-```bash
-# Run the same checks as CI
-make ci
-```
-
-## Contributing
-
-We welcome contributions! Please follow these guidelines:
-
-### Process
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Make** your changes
-4. **Add** tests for new functionality
-5. **Run** checks: `make check test`
-6. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-7. **Push** to the branch (`git push origin feature/amazing-feature`)
-8. **Open** a Pull Request
-
-### Code Standards
-
-- **Style**: Follow PEP 8 (enforced by `black` and `ruff`)
-- **Types**: Add type hints to all functions
-- **Tests**: Maintain ≥90% coverage
-- **Docs**: Update README for user-facing changes
-- **Commits**: Write clear, descriptive commit messages
-
-### Development Workflow
-
-```bash
-# 1. Setup
-make dev-install
-
-# 2. Make changes
-# ... edit files ...
-
-# 3. Test changes
-make test
-
-# 4. Check code quality
-make check
-
-# 5. Auto-fix issues
-make fix
-
-# 6. Verify everything passes
-make ci
-```
+- **Linting**: ruff
+- **Formatting**: black
+- **Type Checking**: mypy
+- **Testing**: pytest with >90% coverage
+- **CI/CD**: GitHub Actions
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file.
 
-## Support
+## Resources
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/mits-validator-api/issues)
-- **Documentation**: [API Docs](http://localhost:8080/docs) (when running locally)
-- **Email**: your.email@example.com
-
-## Acknowledgments
-
-- Built with [FastAPI](https://fastapi.tiangolo.com/)
-- XML security via [defusedxml](https://github.com/tiran/defusedxml)
-- Rate limiting via [slowapi](https://github.com/laurents/slowapi)
+- **MITS 5.0 Specification**: https://www.naa.org/mits
+- **FastAPI Documentation**: https://fastapi.tiangolo.com
+- **defusedxml**: https://github.com/tiran/defusedxml
 
 ---
 
-**Made with ❤️ for secure XML validation**
+**Built with ❤️ for the multifamily industry**
