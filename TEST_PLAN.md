@@ -164,7 +164,7 @@ docker-compose run --rm api pytest tests/validators/mits/ -v --cov=app/validator
 - [ ] item_percentage_code_when_needed
 - [ ] item_amount_per_type_valid
 - [ ] item_pms_fields_optional
-- [ ] item_no_unexpected_children
+- [x] ~~item_no_unexpected_children~~ (REMOVED - Rule 41 no longer enforced)
 
 ### Item Characteristics (13 rules + sub-rules)
 - [ ] char_requirement_required

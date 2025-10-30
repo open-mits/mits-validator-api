@@ -186,7 +186,7 @@ app/
 │   │   ├── section_c_identity.py        # Rules 11-14
 │   │   ├── section_d_class_structure.py # Rules 15-20
 │   │   ├── section_e_class_limits.py    # Rules 21-26
-│   │   ├── section_f_offer_items.py     # Rules 27-41
+│   │   ├── section_f_offer_items.py     # Rules 27-40
 │   │   ├── section_g_characteristics.py # Rules 42-49
 │   │   ├── section_h_amount_basis.py    # Rules 50-56
 │   │   ├── section_i_amount_blocks.py   # Rules 57-65

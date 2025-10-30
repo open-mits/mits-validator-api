@@ -75,7 +75,7 @@ This document maps the old section-based naming to new descriptive names.
 - F.38 → item_percentage_code_when_needed
 - F.39 → item_amount_per_type_valid
 - F.40 → item_pms_fields_optional
-- F.41 → item_no_unexpected_children
+- F.41 → ~~item_no_unexpected_children~~ (REMOVED - unknown child elements now allowed)
 
 ### Item Characteristics (formerly Section G)
 - G.42 → char_requirement_required

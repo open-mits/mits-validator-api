@@ -211,6 +211,7 @@ class AmountBasisValidator(BaseValidator):
         # Can be: multiple <Amounts> elements, or comma/newline-separated values within one element
         amounts_elems = block.findall("Amounts")
         amount_count = 0
+        amounts_text = ""  # Initialize to avoid UnboundLocalError
         
         if amounts_elems:
             # First check if there are multiple <Amounts> elements

@@ -1,5 +1,5 @@
 """
-Section F: Offer Item — Common Structure (Rules 27-41)
+Section F: Offer Item — Common Structure (Rules 27-40)
 
 Validates the common structure of all offer items (ChargeOfferItem and specialized items).
 """
@@ -31,7 +31,6 @@ class OfferItemStructureValidator(BaseValidator):
         38. Optional <PercentageOfCode> present only when AmountBasis="Percentage Of"
         39. Optional <AmountPerType> if present uses valid enumeration
         40. Optional PMS passthrough fields may appear
-        41. No unexpected/unknown child elements
     """
 
     section_name = "Offer Item Structure"
@@ -90,11 +89,47 @@ class OfferItemStructureValidator(BaseValidator):
 
             # Rule F.27: InternalCode is required and non-empty
             if not item_code:
+                # Try to get identifying information for better error message
+                identifiers = []
+                
+                # Try Name first
+                name_elem = item.find("Name")
+                name = self.get_text(name_elem) if name_elem is not None else None
+                if name:
+                    identifiers.append(f"Name='{name}'")
+                
+                # Try Description
+                desc_elem = item.find("Description")
+                desc = self.get_text(desc_elem) if desc_elem is not None else None
+                if desc and not name:  # Only use if no name
+                    identifiers.append(f"Description='{desc[:50]}...'")  # Truncate long descriptions
+                
+                # Try ChargeRequirement as last resort
+                if not identifiers:
+                    req_elem = item.find("ChargeRequirement")
+                    req = self.get_text(req_elem) if req_elem is not None else None
+                    if req:
+                        identifiers.append(f"ChargeRequirement='{req}'")
+                
+                # Build the message
+                if identifiers:
+                    message = (
+                        f"<{item.tag}> with {identifiers[0]} in class '{class_code}' "
+                        f"missing required non-empty 'InternalCode' attribute"
+                    )
+                    details = {"class_code": class_code, "identifier": identifiers[0], "item_type": item.tag}
+                else:
+                    message = (
+                        f"<{item.tag}> at {item_path} in class '{class_code}' "
+                        f"missing required non-empty 'InternalCode' attribute"
+                    )
+                    details = {"class_code": class_code, "item_type": item.tag}
+                
                 self.result.add_error(
                     rule_id="item_has_internal_code",
-                    message=f"Offer item in class '{class_code}' missing required non-empty 'InternalCode' attribute",
+                    message=message,
                     element_path=item_path,
-                    details={"class_code": class_code},
+                    details=details,
                 )
                 continue
 
@@ -195,9 +230,6 @@ class OfferItemStructureValidator(BaseValidator):
 
         # Rules F.34, F.35, F.36: Validate occurrence constraints
         self._validate_occurrences(item, item_code, class_code, item_path)
-
-        # Rule F.41: Check for unexpected children
-        self._check_unexpected_children(item, item_code, class_code, item_path)
 
     def _validate_amount_basis_required(
         self, item: Element, item_code: str, class_code: str, item_path: str
@@ -304,56 +336,3 @@ class OfferItemStructureValidator(BaseValidator):
                     element_path=item_path,
                     details={"class_code": class_code, "item_code": item_code, "min": min_occur, "max": max_occur},
                 )
-
-    def _check_unexpected_children(
-        self, item: Element, item_code: str, class_code: str, item_path: str
-    ) -> None:
-        """
-        Check for unexpected child elements in an item.
-
-        Args:
-            item: Offer item element
-            item_code: InternalCode of the item
-            class_code: Code of the parent class
-            item_path: Path to item for error messages
-        """
-        # Get specialized children based on item type
-        specialized_children = set()
-        if item.tag == "PetOfferItem":
-            specialized_children = {
-                "Allowed",
-                "PetBreedorType",
-                "MaximumSize",
-                "MaximumWeight",
-                "PetCare",
-            }
-        elif item.tag == "ParkingOfferItem":
-            specialized_children = {
-                "StructureType",
-                "ParkingSpaceSize",
-                "SizeType",
-                "RegularSpace",
-                "Handicapped",
-                "Electric",
-                "SpaceDescription",
-            }
-        elif item.tag == "StorageOfferItem":
-            specialized_children = {
-                "StorageType",
-                "StorageUoM",
-                "Height",
-                "Width",
-                "Length",
-            }
-
-        allowed_children = self.COMMON_ITEM_CHILDREN | specialized_children
-
-        for child in item:
-            if child.tag not in allowed_children:
-                self.result.add_warning(
-                    rule_id="item_no_unexpected_children",
-                    message=f"Item '{item_code}' contains unexpected child element <{child.tag}>",
-                    element_path=f"{item_path}/{child.tag}",
-                    details={"class_code": class_code, "item_code": item_code},
-                )
-
