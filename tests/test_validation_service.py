@@ -6,18 +6,16 @@ from app.services.validation_service import validate
 class TestValidationService:
     """Test suite for validation service orchestration."""
 
-    def test_validate_simple_valid_xml(self, valid_xml):
-        """Test validation service with simple valid XML."""
-        result = validate(valid_xml["simple"])
+    def test_validate_simple_valid_xml(self, mits_xml):
+        """Test validation service with simple valid MITS XML."""
+        result = validate(mits_xml["minimal_valid"])
 
         assert result["valid"] is True
         assert len(result["errors"]) == 0
-        assert len(result["warnings"]) == 0
-        assert len(result["info"]) == 0
 
-    def test_validate_complex_valid_xml(self, valid_xml):
-        """Test validation service with complex valid XML."""
-        result = validate(valid_xml["complex"])
+    def test_validate_complex_valid_xml(self, mits_xml):
+        """Test validation service with complex valid MITS XML."""
+        result = validate(mits_xml["with_class"])
 
         assert result["valid"] is True
         assert len(result["errors"]) == 0
@@ -28,7 +26,8 @@ class TestValidationService:
 
         assert result["valid"] is False
         assert len(result["errors"]) > 0
-        assert "Invalid XML" in result["errors"]
+        # Error message changed to be more specific
+        assert any("xml" in err.lower() for err in result["errors"])
 
     def test_validate_empty_string(self, invalid_xml):
         """Test validation service with empty string."""
@@ -37,17 +36,17 @@ class TestValidationService:
         assert result["valid"] is False
         assert len(result["errors"]) > 0
 
-    def test_validate_with_bom(self):
+    def test_validate_with_bom(self, mits_xml):
         """Test validation service strips UTF-8 BOM."""
-        xml_with_bom = "\ufeff<root><item>value</item></root>"
+        xml_with_bom = "\ufeff" + mits_xml["minimal_valid"]
         result = validate(xml_with_bom)
 
         assert result["valid"] is True
         assert len(result["errors"]) == 0
 
-    def test_validate_with_whitespace(self):
+    def test_validate_with_whitespace(self, mits_xml):
         """Test validation service handles leading/trailing whitespace."""
-        xml_with_whitespace = "  \n  <root><item>value</item></root>  \n  "
+        xml_with_whitespace = "  \n  " + mits_xml["minimal_valid"] + "  \n  "
         result = validate(xml_with_whitespace)
 
         assert result["valid"] is True

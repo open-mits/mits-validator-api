@@ -7,11 +7,11 @@ from fastapi import status
 class TestValidationEndpoint:
     """Test suite for POST /v5.0/validate endpoint."""
 
-    def test_validate_raw_xml_valid(self, client, valid_xml):
-        """Test validation with raw XML body (valid)."""
+    def test_validate_raw_xml_valid(self, client, mits_xml):
+        """Test validation with raw XML body (valid MITS document)."""
         response = client.post(
             "/v5.0/validate",
-            content=valid_xml["simple"],
+            content=mits_xml["minimal_valid"],
             headers={"Content-Type": "application/xml"},
         )
 
@@ -34,18 +34,19 @@ class TestValidationEndpoint:
         assert data["valid"] is False
         assert len(data["errors"]) > 0
 
-    def test_validate_json_wrapped_valid(self, client, valid_xml):
-        """Test validation with JSON-wrapped XML (valid)."""
+    def test_validate_json_wrapped_valid(self, client):
+        """Test that JSON-wrapped XML is no longer supported."""
         response = client.post(
             "/v5.0/validate",
-            json={"xml": valid_xml["simple"]},
+            json={"xml": "<root/>"},
             headers={"Content-Type": "application/json"},
         )
 
+        # JSON is no longer accepted, should return validation error
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["valid"] is True
-        assert len(data["errors"]) == 0
+        assert data["valid"] is False
+        assert any("Content-Type" in err for err in data["errors"])
 
     def test_validate_json_wrapped_invalid(self, client, invalid_xml):
         """Test validation with JSON-wrapped XML (invalid)."""
@@ -60,11 +61,11 @@ class TestValidationEndpoint:
         assert data["valid"] is False
         assert len(data["errors"]) > 0
 
-    def test_validate_text_xml_content_type(self, client, valid_xml):
+    def test_validate_text_xml_content_type(self, client, mits_xml):
         """Test validation with text/xml content type."""
         response = client.post(
             "/v5.0/validate",
-            content=valid_xml["simple"],
+            content=mits_xml["minimal_valid"],
             headers={"Content-Type": "text/xml"},
         )
 
@@ -80,7 +81,11 @@ class TestValidationEndpoint:
             headers={"Content-Type": "text/plain"},
         )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        # Now returns 200 with validation error instead of 400
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["valid"] is False
+        assert any("Content-Type" in err for err in data["errors"])
 
     def test_validate_empty_body(self, client):
         """Test rejection of empty body."""
@@ -90,7 +95,11 @@ class TestValidationEndpoint:
             headers={"Content-Type": "application/xml"},
         )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        # Now returns 200 with validation error instead of 400
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["valid"] is False
+        assert any("empty" in err.lower() for err in data["errors"])
 
     def test_validate_json_missing_xml_field(self, client):
         """Test rejection of JSON without 'xml' field."""
@@ -100,7 +109,11 @@ class TestValidationEndpoint:
             headers={"Content-Type": "application/json"},
         )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        # JSON no longer supported, returns 200 with validation error
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["valid"] is False
+        assert any("Content-Type" in err for err in data["errors"])
 
     def test_validate_json_empty_xml_field(self, client):
         """Test rejection of JSON with empty 'xml' field."""
@@ -110,7 +123,11 @@ class TestValidationEndpoint:
             headers={"Content-Type": "application/json"},
         )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        # JSON no longer supported, returns 200 with validation error
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["valid"] is False
+        assert any("Content-Type" in err for err in data["errors"])
 
     def test_validate_invalid_utf8(self, client):
         """Test rejection of invalid UTF-8 encoding."""
@@ -120,7 +137,11 @@ class TestValidationEndpoint:
             headers={"Content-Type": "application/xml"},
         )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        # Now returns 200 with validation error instead of 400
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["valid"] is False
+        assert any("UTF-8" in err or "encoding" in err.lower() for err in data["errors"])
 
     def test_validate_xxe_protection(self, client, xxe_payloads):
         """Test that XXE attacks are properly blocked."""
@@ -150,16 +171,16 @@ class TestValidationEndpoint:
                 headers={"Content-Type": "application/xml"},
             )
             # If we somehow get here, check it was rejected
-            assert response.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            assert response.status_code == status.HTTP_413_CONTENT_TOO_LARGE
         except Exception as e:
             # Middleware correctly raised BodyTooLargeError
             assert "413" in str(e) or "too large" in str(e).lower()
 
-    def test_validate_complex_valid_xml(self, client, valid_xml):
-        """Test validation with complex XML structure."""
+    def test_validate_complex_valid_xml(self, client, mits_xml):
+        """Test validation with complex MITS XML structure."""
         response = client.post(
             "/v5.0/validate",
-            content=valid_xml["complex"],
+            content=mits_xml["with_class"],
             headers={"Content-Type": "application/xml"},
         )
 

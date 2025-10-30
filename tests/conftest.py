@@ -29,6 +29,8 @@ async def async_client(app):
 @pytest.fixture
 def valid_xml():
     """Fixture providing valid XML samples."""
+    # Note: These are simple XML for basic XML parsing tests
+    # They will fail MITS validation but are valid XML
     return {
         "simple": "<root><item>value</item></root>",
         "complex": """<?xml version="1.0" encoding="UTF-8"?>
@@ -45,6 +47,45 @@ def valid_xml():
 </root>""",
         "minimal": "<root/>",
         "with_attributes": '<root id="1" name="test"><item/></root>',
+    }
+
+
+@pytest.fixture
+def mits_xml():
+    """Fixture providing MITS-compliant XML samples."""
+    return {
+        "minimal_valid": """<?xml version="1.0" encoding="UTF-8"?>
+<PhysicalProperty>
+    <Property IDValue="TEST123">
+        <PropertyID>
+            <Identification IDValue="TEST123" />
+        </PropertyID>
+    </Property>
+</PhysicalProperty>""",
+        "with_class": """<?xml version="1.0" encoding="UTF-8"?>
+<PhysicalProperty>
+    <Property IDValue="TEST123">
+        <PropertyID>
+            <Identification IDValue="TEST123" />
+        </PropertyID>
+        <ChargeOfferClass Code="RENT">
+            <Name>Monthly Rent</Name>
+            <ChargeOfferItem InternalCode="rent1">
+                <Name>Base Rent</Name>
+                <Description>Monthly base rent</Description>
+                <AmountBasis>Explicit</AmountBasis>
+                <Characteristics>
+                    <ChargeRequirement>Mandatory</ChargeRequirement>
+                    <Lifecycle>Move-in</Lifecycle>
+                    <Recurring>Monthly</Recurring>
+                </Characteristics>
+                <ChargeOfferAmount>
+                    <Amounts>1000</Amounts>
+                </ChargeOfferAmount>
+            </ChargeOfferItem>
+        </ChargeOfferClass>
+    </Property>
+</PhysicalProperty>""",
     }
 
 

@@ -27,7 +27,7 @@ class BodyTooLargeError(HTTPException):
 
     def __init__(self, max_size: int) -> None:
         super().__init__(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Request body too large. Maximum allowed size: {max_size} bytes",
         )
 
