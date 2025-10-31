@@ -291,8 +291,35 @@ class TestBasisPercentageOf:
 class TestBasisRange:
     """Test basis_range_* rules (Range or Variable)."""
 
-    def test_range_with_single_amount(self, parse_xml, create_charge_class):
-        """Range basis with single Amount - should pass."""
+    def test_range_with_two_separate_amounts(self, parse_xml, create_charge_class):
+        """Range basis with exactly two separate Amounts elements - should pass."""
+        item = """<ChargeOfferItem InternalCode="fee1">
+            <Name>Test</Name>
+            <Description>Test</Description>
+            <Characteristics>
+                <ChargeRequirement>Optional</ChargeRequirement>
+                <Lifecycle>At Application</Lifecycle>
+            </Characteristics>
+            <AmountBasis>Within Range</AmountBasis>
+            <ChargeOfferAmount>
+                <Amounts>100.00</Amounts>
+                <Amounts>500.00</Amounts>
+                <Percentage></Percentage>
+            </ChargeOfferAmount>
+        </ChargeOfferItem>"""
+        xml = f"""<PhysicalProperty>
+            <Property IDValue="1">
+                {create_charge_class("FEE", item)}
+            </Property>
+        </PhysicalProperty>"""
+        root = parse_xml(xml)
+        validator = AmountBasisValidator(root)
+        result = validator.validate()
+        
+        assert result.valid is True, "Within Range with exactly 2 separate Amounts elements should pass"
+
+    def test_range_with_two_separate_amounts_range_or_variable(self, parse_xml, create_charge_class):
+        """Range or Variable basis with exactly two separate Amounts elements - should pass."""
         item = """<ChargeOfferItem InternalCode="fee1">
             <Name>Test</Name>
             <Description>Test</Description>
@@ -301,6 +328,115 @@ class TestBasisRange:
                 <Lifecycle>At Application</Lifecycle>
             </Characteristics>
             <AmountBasis>Range or Variable</AmountBasis>
+            <ChargeOfferAmount>
+                <Amounts>100.00</Amounts>
+                <Amounts>400.00</Amounts>
+                <Percentage></Percentage>
+            </ChargeOfferAmount>
+        </ChargeOfferItem>"""
+        xml = f"""<PhysicalProperty>
+            <Property IDValue="1">
+                {create_charge_class("FEE", item)}
+            </Property>
+        </PhysicalProperty>"""
+        root = parse_xml(xml)
+        validator = AmountBasisValidator(root)
+        result = validator.validate()
+        
+        assert result.valid is True, "Range or Variable with exactly 2 separate Amounts elements should pass"
+
+    def test_range_with_single_amount_element(self, parse_xml, create_charge_class):
+        """Range basis with only one Amounts element - should fail."""
+        item = """<ChargeOfferItem InternalCode="fee1">
+            <Name>Test</Name>
+            <Description>Test</Description>
+            <Characteristics>
+                <ChargeRequirement>Optional</ChargeRequirement>
+                <Lifecycle>At Application</Lifecycle>
+            </Characteristics>
+            <AmountBasis>Within Range</AmountBasis>
+            <ChargeOfferAmount>
+                <Amounts>100.00</Amounts>
+                <Percentage></Percentage>
+            </ChargeOfferAmount>
+        </ChargeOfferItem>"""
+        xml = f"""<PhysicalProperty>
+            <Property IDValue="1">
+                {create_charge_class("FEE", item)}
+            </Property>
+        </PhysicalProperty>"""
+        root = parse_xml(xml)
+        validator = AmountBasisValidator(root)
+        result = validator.validate()
+        
+        assert result.valid is False
+        assert any("basis_range_one_amount" in e.rule_id for e in result.errors)
+
+    def test_range_with_no_amounts(self, parse_xml, create_charge_class):
+        """Range basis with no Amounts elements - should fail."""
+        item = """<ChargeOfferItem InternalCode="fee1">
+            <Name>Test</Name>
+            <Description>Test</Description>
+            <Characteristics>
+                <ChargeRequirement>Optional</ChargeRequirement>
+                <Lifecycle>At Application</Lifecycle>
+            </Characteristics>
+            <AmountBasis>Within Range</AmountBasis>
+            <ChargeOfferAmount>
+                <Percentage></Percentage>
+            </ChargeOfferAmount>
+        </ChargeOfferItem>"""
+        xml = f"""<PhysicalProperty>
+            <Property IDValue="1">
+                {create_charge_class("FEE", item)}
+            </Property>
+        </PhysicalProperty>"""
+        root = parse_xml(xml)
+        validator = AmountBasisValidator(root)
+        result = validator.validate()
+        
+        assert result.valid is False
+        assert any("basis_range_one_amount" in e.rule_id for e in result.errors)
+
+    def test_range_with_three_amounts(self, parse_xml, create_charge_class):
+        """Range basis with three Amounts elements - should fail."""
+        item = """<ChargeOfferItem InternalCode="fee1">
+            <Name>Test</Name>
+            <Description>Test</Description>
+            <Characteristics>
+                <ChargeRequirement>Optional</ChargeRequirement>
+                <Lifecycle>At Application</Lifecycle>
+            </Characteristics>
+            <AmountBasis>Within Range</AmountBasis>
+            <ChargeOfferAmount>
+                <Amounts>100.00</Amounts>
+                <Amounts>200.00</Amounts>
+                <Amounts>300.00</Amounts>
+                <Percentage></Percentage>
+            </ChargeOfferAmount>
+        </ChargeOfferItem>"""
+        xml = f"""<PhysicalProperty>
+            <Property IDValue="1">
+                {create_charge_class("FEE", item)}
+            </Property>
+        </PhysicalProperty>"""
+        root = parse_xml(xml)
+        validator = AmountBasisValidator(root)
+        result = validator.validate()
+        
+        assert result.valid is False
+        assert any("basis_range_one_amount" in e.rule_id for e in result.errors)
+
+    def test_range_with_dash_separated_in_one_element(self, parse_xml, create_charge_class):
+        """Range basis with dash-separated values in single element - should fail."""
+        item = """<ChargeOfferItem InternalCode="fee1">
+            <Name>Test</Name>
+            <Description>Test</Description>
+            <Characteristics>
+                <ChargeRequirement>Optional</ChargeRequirement>
+                <Lifecycle>At Application</Lifecycle>
+            </Characteristics>
+            <AmountBasis>Within Range</AmountBasis>
             <ChargeOfferAmount>
                 <Amounts>100.00-500.00</Amounts>
                 <Percentage></Percentage>
@@ -315,10 +451,11 @@ class TestBasisRange:
         validator = AmountBasisValidator(root)
         result = validator.validate()
         
-        # Should pass with single range value
+        assert result.valid is False
+        assert any("basis_range_one_amount" in e.rule_id for e in result.errors)
 
-    def test_range_with_multiple_amounts(self, parse_xml, create_charge_class):
-        """Range basis with multiple Amounts - should fail."""
+    def test_range_with_comma_separated_in_one_element(self, parse_xml, create_charge_class):
+        """Range basis with comma-separated values in single element - should fail."""
         item = """<ChargeOfferItem InternalCode="fee1">
             <Name>Test</Name>
             <Description>Test</Description>
@@ -326,10 +463,9 @@ class TestBasisRange:
                 <ChargeRequirement>Optional</ChargeRequirement>
                 <Lifecycle>At Application</Lifecycle>
             </Characteristics>
-            <AmountBasis>Range or Variable</AmountBasis>
+            <AmountBasis>Within Range</AmountBasis>
             <ChargeOfferAmount>
-                <Amounts>100.00</Amounts>
-                <Amounts>200.00</Amounts>
+                <Amounts>100.00, 500.00</Amounts>
                 <Percentage></Percentage>
             </ChargeOfferAmount>
         </ChargeOfferItem>"""

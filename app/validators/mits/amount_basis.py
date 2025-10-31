@@ -230,6 +230,10 @@ class AmountBasisValidator(BaseValidator):
                     amount_count = len(amount_values)
                 else:
                     amount_count = 0
+            
+            # If multiple elements, collect text from all for validation purposes
+            elif amount_count > 1:
+                amounts_text = ", ".join([self.get_text(elem) for elem in amounts_elems if self.get_text(elem)])
 
         if amount_basis == "Explicit":
             # Rule H.51.1: Must have Amounts (≥1)
@@ -294,15 +298,35 @@ class AmountBasisValidator(BaseValidator):
                 )
 
         elif amount_basis in ("Within Range", "Range or Variable"):
-            # Rule H.53.1: Accepts one Amounts value per block
-            if amount_count > 1:
-                self.result.add_error(
-                    rule_id="basis_range_one_amount",
-                    message=f"Item '{item_code}' has AmountBasis='{amount_basis}' but {amount_count} amount values. "
-                    f"Only one amount value is allowed per block for range-based pricing",
-                    element_path=f"{block_path}/Amounts",
-                    details={"class_code": class_code, "item_code": item_code, "count": amount_count},
-                )
+            # Rule H.53.1: Within Range requires exactly two separate <Amounts> elements
+            # First element is the lowest amount, second element is the highest amount
+            # Comma-separated or dash-separated values in a single element are NOT allowed
+            amounts_element_count = len(amounts_elems) if amounts_elems else 0
+            if amounts_element_count != 2:
+                if amounts_element_count == 0:
+                    self.result.add_error(
+                        rule_id="basis_range_one_amount",
+                        message=f"Item '{item_code}' has AmountBasis='{amount_basis}' but no <Amounts> elements. "
+                        f"Within Range requires exactly two separate <Amounts> elements (lowest and highest)",
+                        element_path=f"{block_path}/Amounts",
+                        details={"class_code": class_code, "item_code": item_code, "count": amounts_element_count},
+                    )
+                elif amounts_element_count == 1:
+                    self.result.add_error(
+                        rule_id="basis_range_one_amount",
+                        message=f"Item '{item_code}' has AmountBasis='{amount_basis}' but only {amounts_element_count} <Amounts> element. "
+                        f"Within Range requires exactly two separate <Amounts> elements (first is lowest, second is highest)",
+                        element_path=f"{block_path}/Amounts",
+                        details={"class_code": class_code, "item_code": item_code, "count": amounts_element_count},
+                    )
+                else:
+                    self.result.add_error(
+                        rule_id="basis_range_one_amount",
+                        message=f"Item '{item_code}' has AmountBasis='{amount_basis}' but {amounts_element_count} <Amounts> elements. "
+                        f"Within Range requires exactly two separate <Amounts> elements (first is lowest, second is highest)",
+                        element_path=f"{block_path}/Amounts",
+                        details={"class_code": class_code, "item_code": item_code, "count": amounts_element_count},
+                    )
 
         elif amount_basis == "Stepped":
             # Rule H.54.1: Must have ≥2 Amounts values
