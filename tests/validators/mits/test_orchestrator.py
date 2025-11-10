@@ -143,7 +143,7 @@ class TestMITSOrchestrator:
         assert any("Invalid ChargeRequirement" in err for err in result["errors"])
 
     def test_percentage_of_with_missing_reference(self):
-        """Test validation fails for PercentageOfCode referencing non-existent item."""
+        """Test that PercentageOfCode referencing non-existent item is allowed (validation removed)."""
         xml = """<?xml version="1.0" encoding="UTF-8"?>
 <PhysicalProperty>
     <Property IDValue="1">
@@ -169,8 +169,9 @@ class TestMITSOrchestrator:
 
         result = validate_mits_document(xml)
 
-        assert result["valid"] is False
-        assert any("non-existent code" in err for err in result["errors"])
+        # Validation for non-existent reference codes has been removed
+        # The document should not fail validation due to this
+        assert "non-existent code" not in " ".join(result["errors"])
 
     def test_included_item_with_amounts(self):
         """Test validation fails for Included item with non-empty amounts."""

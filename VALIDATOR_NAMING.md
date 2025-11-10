@@ -163,7 +163,7 @@ This document maps the old section-based naming to new descriptive names.
 - N.87 → limit_amount_cap_runtime
 - N.88 → limit_characteristics_filter
 - N.89 → limit_all_items_no_filter
-- O.90 → reference_code_exists
+- O.90 → reference_code_exists (REMOVED)
 - O.91 → reference_no_self
 - O.92 → reference_no_circular
 - O.93 → reference_not_included

@@ -248,7 +248,7 @@ docker-compose run --rm api pytest tests/validators/mits/ -v --cov=app/validator
 - [ ] limit_amount_cap_runtime
 - [ ] limit_characteristics_filter
 - [ ] limit_all_items_no_filter
-- [ ] reference_code_exists
+- [ ] reference_code_exists (REMOVED)
 - [ ] reference_no_self
 - [ ] reference_no_circular
 - [ ] reference_not_included

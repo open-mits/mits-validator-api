@@ -215,7 +215,7 @@ class CrossValidation(BaseValidator):
 
     def _validate_percentage_references(self, global_item_codes: Dict) -> None:
         """
-        Validate Rules O.90-94: Percentage-of references.
+        Validate Rules O.91-94: Percentage-of references.
 
         Args:
             global_item_codes: Global registry of item codes
@@ -228,16 +228,6 @@ class CrossValidation(BaseValidator):
             item_elem = item_info["element"]
             item_path = self.get_element_path(item_elem)
 
-            # Rule O.90: PercentageOfCode must resolve to existing InternalCode
-            if percentage_of_code not in global_item_codes:
-                self.result.add_error(
-                    rule_id="reference_code_exists",
-                    message=f"Item '{item_code}' references non-existent code '{percentage_of_code}' in <PercentageOfCode>",
-                    element_path=f"{item_path}/PercentageOfCode",
-                    details={"item_code": item_code, "referenced_code": percentage_of_code},
-                )
-                continue
-
             # Rule O.91: No self-reference
             if percentage_of_code == item_code:
                 self.result.add_error(
@@ -246,6 +236,10 @@ class CrossValidation(BaseValidator):
                     element_path=f"{item_path}/PercentageOfCode",
                     details={"item_code": item_code},
                 )
+                continue
+
+            # Skip remaining validations if referenced code doesn't exist
+            if percentage_of_code not in global_item_codes:
                 continue
 
             # Rule O.92: Check for circular references

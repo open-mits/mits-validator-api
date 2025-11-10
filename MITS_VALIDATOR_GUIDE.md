@@ -288,17 +288,9 @@ result = validate(xml_text, validation_type="basic")
 
 #### Percentage-of References
 
-**Rule O.90**: PercentageOfCode must exist
+**Rule O.90**: PercentageOfCode must exist (REMOVED - validation no longer enforced)
 
-```xml
-<!-- INVALID -->
-<AmountBasis>Percentage Of</AmountBasis>
-<PercentageOfCode>nonexistent_code</PercentageOfCode>
-
-<!-- VALID (assuming rent_code exists) -->
-<AmountBasis>Percentage Of</AmountBasis>
-<PercentageOfCode>rent_code</PercentageOfCode>
-```
+**Rule O.91**: No self-reference
 
 ## Extending the Validator
 
